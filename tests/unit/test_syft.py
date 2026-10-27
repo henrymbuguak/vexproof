@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from structlog.testing import capture_logs
 
 from vexproof.errors import IngestError
 from vexproof.ingest import syft
@@ -51,4 +52,28 @@ def test_syft_bad_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         lambda cmd, **_: subprocess.CompletedProcess(cmd, 0, stdout="oops", stderr=""),
     )
     with pytest.raises(IngestError, match="not valid JSON"):
-        syft.generate_sbom(tmp_path)
+        syft.generate_sbom(tmp_path, versions_file=tmp_path / "none")
+
+
+def test_version_mismatch_is_warned_not_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    versions = tmp_path / "versions.env"
+    versions.write_text("SYFT_VERSION=9.9.9\n")
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/syft")
+
+    def fake_run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        out = "Version: 1.2.3\n" if cmd[1] == "version" else json.dumps({"bomFormat": "CycloneDX"})
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with capture_logs() as logs:
+        assert syft.generate_sbom(tmp_path, versions_file=versions) == {"bomFormat": "CycloneDX"}
+    assert logs == [
+        {
+            "event": "syft_version_mismatch",
+            "log_level": "warning",
+            "pinned": "9.9.9",
+            "installed": "1.2.3",
+        }
+    ]
