@@ -1,0 +1,7 @@
+[project]
+name = "mini-app"
+version = "0.1.0"
+dependencies = ["examplelib>=1.0", "Other_Lib[extra]==2.0.0 ; python_version >= '3.10'"]
+
+[project.optional-dependencies]
+dev = ["pytest"]

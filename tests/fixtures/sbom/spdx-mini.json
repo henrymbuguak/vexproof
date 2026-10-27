@@ -1,0 +1,9 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "packages": [
+    {"name": "examplelib", "versionInfo": "1.4.2",
+     "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+                       "referenceLocator": "pkg:pypi/examplelib@1.4.2"}]},
+    {"name": "other", "externalRefs": [{"referenceType": "cpe23Type", "referenceLocator": "cpe:2.3:a:x"}]}
+  ]
+}

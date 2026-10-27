@@ -1,0 +1,5 @@
+# pinned web stack
+flask==2.0.0  # comment after requirement
+-r other-requirements.txt
+git+https://github.com/example/thing.git
+not a valid requirement !!

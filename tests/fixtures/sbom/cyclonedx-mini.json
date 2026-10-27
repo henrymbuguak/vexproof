@@ -1,0 +1,15 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "components": [
+    {"type": "library", "name": "examplelib", "version": "1.4.2", "purl": "pkg:pypi/examplelib@1.4.2"},
+    {"type": "library", "name": "Other_Lib", "version": "2.0.0", "purl": "pkg:pypi/Other_Lib@2.0.0",
+     "components": [
+       {"type": "library", "name": "nested-lib", "version": "0.9", "purl": "pkg:pypi/nested-lib@0.9?file_name=x.whl"}
+     ]},
+    {"type": "library", "name": "examplelib", "version": "1.4.2", "purl": "pkg:pypi/examplelib@1.4.2"},
+    {"type": "library", "name": "left-pad", "version": "1.3.0", "purl": "pkg:npm/left-pad@1.3.0"},
+    {"type": "library", "name": "no-version", "purl": "pkg:pypi/no-version"},
+    {"type": "application", "name": "mini-app"}
+  ]
+}
