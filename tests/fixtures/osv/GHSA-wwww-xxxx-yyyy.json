@@ -1,0 +1,8 @@
+{
+  "id": "GHSA-wwww-xxxx-yyyy",
+  "aliases": [],
+  "summary": "Withdrawn advisory for nested-lib",
+  "withdrawn": "2026-02-01T00:00:00Z",
+  "affected": [{"package": {"ecosystem": "PyPI", "name": "nested-lib"},
+                "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "1.0"}]}]}]
+}

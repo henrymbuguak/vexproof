@@ -1,0 +1,7 @@
+{
+  "id": "PYSEC-2026-1",
+  "aliases": ["CVE-2026-0001", "GHSA-aaaa-bbbb-cccc"],
+  "summary": "Duplicate of the GHSA record, published by the PyPA advisory database",
+  "affected": [{"package": {"ecosystem": "PyPI", "name": "examplelib"},
+                "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "1.4.3"}]}]}]
+}
