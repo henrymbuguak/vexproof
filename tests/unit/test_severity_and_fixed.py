@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from tests.helpers import fixture_json
-from vexproof.intel.fixed import fixed_version
+from vexproof.intel.fixed import fixed_version, is_affected
 from vexproof.intel.severity import base_score, cvss_vector, severity_label
 
 
@@ -82,3 +82,29 @@ def test_last_affected_closes_range_without_fix() -> None:
         fixed_version(_record([{"introduced": "0"}, {"last_affected": "1.9"}]), "lib", "1.0")
         is None
     )
+
+
+@pytest.mark.parametrize(
+    ("installed", "expected"),
+    [
+        ("4.3.0", False),  # below the reviewed range: the real Pillow case
+        ("5.2.0", True),  # introduced bound is inclusive
+        ("8.3.1", True),
+        ("8.3.2", False),  # fixed bound is exclusive
+        ("not-a-version", False),
+    ],
+)
+def test_is_affected_ranges(installed: str, expected: bool) -> None:
+    record = _record([{"introduced": "5.2.0"}, {"fixed": "8.3.2"}])
+    assert is_affected(record, "lib", installed) is expected
+
+
+def test_is_affected_last_affected_open_range_and_explicit_versions() -> None:
+    assert is_affected(_record([{"introduced": "1.0"}, {"last_affected": "1.4"}]), "lib", "1.4")
+    assert not is_affected(_record([{"introduced": "1.0"}, {"last_affected": "1.4"}]), "lib", "1.5")
+    assert is_affected(_record([{"introduced": "2.0"}]), "lib", "9.9")
+    explicit = {
+        "affected": [{"package": {"ecosystem": "PyPI", "name": "lib"}, "versions": ["0.1"]}]
+    }
+    assert is_affected(explicit, "lib", "0.1")
+    assert not is_affected(explicit, "other", "0.1")

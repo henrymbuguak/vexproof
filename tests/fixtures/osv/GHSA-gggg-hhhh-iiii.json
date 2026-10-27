@@ -1,0 +1,7 @@
+{
+  "id": "GHSA-gggg-hhhh-iiii",
+  "aliases": ["CVE-2026-0007", "PYSEC-2026-7"],
+  "summary": "other-lib colour parser ReDoS (reviewed: introduced in 3.0)",
+  "affected": [{"package": {"ecosystem": "PyPI", "name": "other-lib"},
+                "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0"}, {"fixed": "3.1"}]}]}]
+}

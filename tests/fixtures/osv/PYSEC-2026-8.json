@@ -1,0 +1,6 @@
+{
+  "id": "PYSEC-2026-8",
+  "details": "examplelib versions before 1.4.3 bundled a parser vulnerable to CVE-2026-0001. Upgrade to 1.4.3.",
+  "affected": [{"package": {"ecosystem": "PyPI", "name": "examplelib"},
+                "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "1.4.3"}]}]}]
+}

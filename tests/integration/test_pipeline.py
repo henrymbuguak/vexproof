@@ -24,7 +24,13 @@ def test_scan_end_to_end_with_mocked_services(
     assert [f.advisory.id for f in result.findings] == [
         "GHSA-aaaa-bbbb-cccc",
         "GHSA-dddd-eeee-ffff",
+        "PYSEC-2026-7",
     ]
+    # the alias-less PYSEC-2026-8 duplicates the KEV advisory and is merged into it
+    assert "PYSEC-2026-8" in result.findings[0].advisory.aliases
+    # PYSEC-2026-7 stays counted but is disputed by its own reviewed GHSA alias
+    assert result.findings[2].advisory.disputed_by == "GHSA-gggg-hhhh-iiii"
+    assert result.findings[0].advisory.disputed_by is None
     kev_hit = result.findings[0]
     assert kev_hit.signals.in_kev
     assert kev_hit.signals.epss_percentile == 0.998
@@ -45,7 +51,7 @@ def test_scan_uses_sbom_generator_when_no_sbom(
 
     result = scan(REPO, http=http, config=CONFIG, sbom_generator=generator)
     assert seen == [REPO]
-    assert len(result.findings) == 2
+    assert len(result.findings) == 3
 
 
 def test_cli_scan_writes_json(
@@ -70,7 +76,8 @@ def test_cli_scan_writes_json(
         ],
     )
     assert result.exit_code == 0, result.output
-    assert "2 scanner alerts" in result.output
+    assert "3 scanner alerts" in result.output
+    assert "1 alert(s) disputed" in result.output
     payload = json.loads(out.read_text())
     assert payload["findings"][0]["signals"]["in_kev"] is True
 

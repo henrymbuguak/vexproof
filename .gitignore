@@ -25,3 +25,6 @@ eval/workspace/
 
 # OS
 .DS_Store
+
+# Ad-hoc scan output (eval results live in eval/results/)
+/findings*.json

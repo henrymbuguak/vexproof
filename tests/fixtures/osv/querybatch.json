@@ -1,9 +1,32 @@
 {
   "results": [
-    {"vulns": [{"id": "GHSA-aaaa-bbbb-cccc", "modified": "2026-01-01T00:00:00Z"},
-               {"id": "PYSEC-2026-1", "modified": "2026-01-01T00:00:00Z"}],
-     "next_page_token": "page-2"},
-    {"vulns": [{"id": "GHSA-wwww-xxxx-yyyy", "modified": "2026-01-01T00:00:00Z"}]},
-    {}
+    {
+      "vulns": [
+        {
+          "id": "GHSA-aaaa-bbbb-cccc",
+          "modified": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "PYSEC-2026-1",
+          "modified": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "next_page_token": "page-2"
+    },
+    {
+      "vulns": [
+        {
+          "id": "GHSA-wwww-xxxx-yyyy",
+          "modified": "2026-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "vulns": [
+        {
+          "id": "PYSEC-2026-7"
+        }
+      ]
+    }
   ]
 }

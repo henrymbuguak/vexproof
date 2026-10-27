@@ -20,9 +20,14 @@ PACKAGES = (
 
 def test_osv_batch_follows_pagination(http: JsonHttp, mocked_services: respx.MockRouter) -> None:
     ids = OSVClient(http, OSV).advisory_ids(PACKAGES)
-    assert ids[PACKAGES[0]] == ("GHSA-aaaa-bbbb-cccc", "PYSEC-2026-1", "GHSA-dddd-eeee-ffff")
+    assert ids[PACKAGES[0]] == (
+        "GHSA-aaaa-bbbb-cccc",
+        "PYSEC-2026-1",
+        "GHSA-dddd-eeee-ffff",
+        "PYSEC-2026-8",
+    )
     assert ids[PACKAGES[1]] == ("GHSA-wwww-xxxx-yyyy",)
-    assert ids[PACKAGES[2]] == ()
+    assert ids[PACKAGES[2]] == ("PYSEC-2026-7",)
     sent = mocked_services.routes[1].calls.last.request.content
     assert b'"page_token":"page-2"' in sent.replace(b" ", b"")
 

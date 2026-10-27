@@ -1,0 +1,7 @@
+{
+  "id": "PYSEC-2026-7",
+  "aliases": ["CVE-2026-0007", "GHSA-gggg-hhhh-iiii"],
+  "summary": "other-lib colour parser ReDoS (PyPA record claims every version)",
+  "affected": [{"package": {"ecosystem": "PyPI", "name": "other-lib"},
+                "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "3.1"}]}]}]
+}

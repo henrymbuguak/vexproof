@@ -17,6 +17,7 @@ from vexproof.domain import Finding, Package
 from vexproof.ingest.direct import direct_dependency_names
 from vexproof.ingest.sbom import load_sbom, packages_from_sbom
 from vexproof.ingest.syft import generate_sbom
+from vexproof.intel.disputes import find_disputes
 from vexproof.intel.enrich import build_findings
 from vexproof.intel.epss import load_epss
 from vexproof.intel.http import JsonHttp
@@ -66,7 +67,8 @@ def gather_intel(
     }
     kev = load_kev(http, config.kev_url)
     epss = load_epss(http, config.epss_url, cves)
-    return build_findings(records, kev, epss)
+    disputes = {pkg: find_disputes(pkg, recs, osv.record) for pkg, recs in records.items()}
+    return build_findings(records, kev, epss, disputes)
 
 
 def scan(

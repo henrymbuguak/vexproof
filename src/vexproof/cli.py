@@ -32,7 +32,7 @@ def _sort_key(finding: Finding) -> tuple[bool, float, float, str]:
 
 def _render(result: ScanResult, profile: ServiceProfile | None) -> None:
     table = Table(title=f"Raw findings for {result.source}", show_lines=False)
-    for column in ("Package", "Advisory", "Fixed in", "CVSS", "EPSS", "KEV", "Direct"):
+    for column in ("Package", "Advisory", "Fixed in", "CVSS", "EPSS", "KEV", "Direct", "Note"):
         table.add_column(column)
     for f in sorted(result.findings, key=_sort_key):
         table.add_row(
@@ -45,8 +45,15 @@ def _render(result: ScanResult, profile: ServiceProfile | None) -> None:
             f"{f.signals.epss:.3f}" if f.signals.epss is not None else "-",
             "yes" if f.signals.in_kev else "",
             "yes" if f.package.direct else "",
+            f"disputed by {f.advisory.disputed_by}" if f.advisory.disputed_by else "",
         )
     console.print(table)
+    disputed = sum(1 for f in result.findings if f.advisory.disputed_by)
+    if disputed:
+        console.print(
+            f"{disputed} alert(s) disputed: the reviewed GHSA record for the same CVE "
+            "says this version is not affected"
+        )
     affected = len({f.package for f in result.findings})
     console.print(
         f"{len(result.packages)} packages, {affected} with advisories, "

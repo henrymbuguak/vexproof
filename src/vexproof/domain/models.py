@@ -60,6 +60,10 @@ class Advisory(Frozen):
     references: tuple[Reference, ...] = ()
     cvss_vector: str | None = None
     severity_label: str | None = None
+    disputed_by: str | None = Field(
+        default=None,
+        description="A reviewed GHSA alias whose ranges exclude the installed version",
+    )
     source: Literal["osv.dev"] = "osv.dev"
 
     @property

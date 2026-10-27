@@ -73,3 +73,34 @@ def fixed_version(record: Mapping[str, Any], package: str, installed: str) -> st
         every_fix.extend(fixes)
     above = sorted(v for v in every_fix if v > current)
     return str(above[0]) if above else None
+
+
+def is_affected(record: Mapping[str, Any], package: str, installed: str) -> bool:
+    """True if `installed` falls in an affected range or explicit version list of the record."""
+    current = _version(installed)
+    if current is None:
+        return False
+    wanted = canonicalize_name(package)
+    for affected in record.get("affected") or []:
+        pkg = affected.get("package") or {}
+        same = canonicalize_name(str(pkg.get("name", ""))) == wanted
+        if (
+            pkg.get("ecosystem") == "PyPI"
+            and same
+            and installed in (affected.get("versions") or [])
+        ):
+            return True
+    for events in _ecosystem_ranges(record, package):
+        start: Version | None = None
+        for version, kind in events:
+            if kind == "introduced":
+                start = version
+                continue
+            if start is not None and (
+                start <= current < version or (kind == "last_affected" and current == version)
+            ):
+                return True
+            start = None
+        if start is not None and current >= start:
+            return True
+    return False
