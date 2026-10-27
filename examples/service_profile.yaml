@@ -1,0 +1,7 @@
+# Business context for prioritization. It never changes whether code is reachable.
+service: demo-fixture-app
+internet_facing: true
+handles_personal_data: true
+criticality: high          # low | medium | high
+entrypoints:               # optional hints; framework routes are also detected automatically
+  - app/main.py
