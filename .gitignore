@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+
+# Secrets and local state
+.env
+.vexproof-cache/
+.audit-requirements.txt
+
+# Eval workspaces (repos are cloned at run time, never committed)
+eval/workspace/
+
+# OS
+.DS_Store
