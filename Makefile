@@ -26,8 +26,10 @@ test: ## Offline test suite with coverage gate
 check: lint type test ## Full quality gate (what CI runs)
 
 audit: ## Audit vexproof's own locked dependencies for known vulnerabilities
-	$(UV) export --quiet --locked --no-hashes --no-emit-project --all-groups -o .audit-requirements.txt
-	$(UV) run pip-audit --strict -r .audit-requirements.txt; status=$$?; rm -f .audit-requirements.txt; exit $$status
+	@# uv.lock already pins and hashes everything: audit those exact versions, no re-resolution
+	$(UV) export --quiet --locked --no-emit-project --all-groups -o .audit-requirements.txt
+	$(UV) run pip-audit --strict --require-hashes --disable-pip -r .audit-requirements.txt; \
+		status=$$?; rm -f .audit-requirements.txt; exit $$status
 
 smoke: ## Live smoke tests against real OSV/KEV/EPSS (needs network)
 	$(UV) run pytest -m network --no-cov
