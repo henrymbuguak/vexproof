@@ -1,19 +1,21 @@
 """Orchestrates the stages. This is the only module where stages meet.
 
-Chapter 1 runs ingest and intel. Later chapters add symbols, evidence, prioritize and report.
+Stages so far: ingest -> intel -> analyze (Level 0 import closure, fix-commit shortlists).
+Later chapters add symbol selection, the evidence engine, prioritization and reporting.
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import structlog
 
-from vexproof.domain import Finding, Package
+from vexproof.domain import Evidence, Finding, Level, Package, Verdict
 from vexproof.ingest.direct import direct_dependency_names
 from vexproof.ingest.sbom import load_sbom, packages_from_sbom
 from vexproof.ingest.syft import generate_sbom
@@ -23,6 +25,12 @@ from vexproof.intel.epss import load_epss
 from vexproof.intel.http import JsonHttp
 from vexproof.intel.kev import load_kev
 from vexproof.intel.osv import OSVClient
+from vexproof.sources.git import GitFixFetcher
+from vexproof.sources.store import SourceStore
+from vexproof.static.closure import reachability
+from vexproof.static.levels import NOT_IN_EXECUTE_PATH, level0
+from vexproof.static.project import scan_project
+from vexproof.static.shortlist import FixSource, build_shortlist
 
 log = structlog.get_logger(__name__)
 
@@ -32,6 +40,16 @@ class IntelConfig:
     osv_url: str
     kev_url: str
     epss_url: str
+    workers: int = 8
+
+
+@dataclass(frozen=True, slots=True)
+class Analyzers:
+    """Collaborators for the analyze stage; tests pass fakes or local repositories."""
+
+    store: SourceStore
+    fetcher: GitFixFetcher | FixSource
+    workers: int = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +75,10 @@ def gather_intel(
 ) -> tuple[Finding, ...]:
     osv = OSVClient(http, config.osv_url)
     ids_by_package = osv.advisory_ids(packages)
-    records = {pkg: [osv.record(i) for i in ids] for pkg, ids in ids_by_package.items() if ids}
+    unique_ids = sorted({i for ids in ids_by_package.values() for i in ids})
+    with ThreadPoolExecutor(max_workers=config.workers) as pool:
+        fetched = dict(zip(unique_ids, pool.map(osv.record, unique_ids), strict=True))
+    records = {pkg: [fetched[i] for i in ids] for pkg, ids in ids_by_package.items() if ids}
     cves = {
         alias
         for recs in records.values()
@@ -67,8 +88,67 @@ def gather_intel(
     }
     kev = load_kev(http, config.kev_url)
     epss = load_epss(http, config.epss_url, cves)
-    disputes = {pkg: find_disputes(pkg, recs, osv.record) for pkg, recs in records.items()}
+    with ThreadPoolExecutor(max_workers=config.workers) as pool:
+        dispute_maps = list(
+            pool.map(lambda item: find_disputes(item[0], item[1], osv.record), records.items())
+        )
+    disputes = dict(zip(records, dispute_maps, strict=True))
     return build_findings(records, kev, epss, disputes)
+
+
+def analyze(
+    repo: Path,
+    packages: Sequence[Package],
+    findings: Sequence[Finding],
+    analyzers: Analyzers,
+) -> tuple[Finding, ...]:
+    """Attach evidence to every finding: Level 0 clears, otherwise a fix-commit shortlist."""
+    trees, failures = analyzers.store.get_many(packages, workers=analyzers.workers)
+    reach = reachability(scan_project(repo), trees, failures)
+    decisions = {f.package: level0(f.package, reach, trees, failures) for f in findings}
+    pending = [f for f in findings if not decisions[f.package].cleared]
+    if isinstance(analyzers.fetcher, GitFixFetcher):
+        analyzers.fetcher.prefetch({c for f in pending for c in f.advisory.fix_commits})
+
+    def evidence_for(finding: Finding) -> Finding:
+        decision = decisions[finding.package]
+        if decision.cleared:
+            return finding.model_copy(
+                update={
+                    "verdict": Verdict.NOT_AFFECTED,
+                    "justification": NOT_IN_EXECUTE_PATH,
+                    "evidence": Evidence(
+                        level=Level.L0_NOT_IMPORTED,
+                        checks_passed=decision.checks,
+                        notes=decision.notes,
+                    ),
+                }
+            )
+        tree = trees.get(finding.package)
+        if tree is None:
+            reason = failures.get(finding.package, "package source unavailable")
+            evidence = Evidence(level=Level.L3_NONE, notes=(*decision.notes, reason))
+            return finding.model_copy(update={"evidence": evidence})
+        shortlist = build_shortlist(finding.advisory, tree, analyzers.fetcher)
+        evidence = Evidence(
+            level=shortlist.level,
+            candidates=shortlist.candidates,
+            changed_modules=shortlist.changed_modules,
+            fix_commits=shortlist.fix_commits,
+            notes=(*decision.notes, *shortlist.notes),
+        )
+        return finding.model_copy(update={"evidence": evidence})
+
+    with ThreadPoolExecutor(max_workers=analyzers.workers) as pool:
+        return tuple(pool.map(evidence_for, findings))
+
+
+def level_counts(findings: Sequence[Finding]) -> dict[str, int]:
+    counts = {level.value: 0 for level in Level}
+    for finding in findings:
+        if finding.evidence is not None:
+            counts[finding.evidence.level.value] += 1
+    return counts
 
 
 def scan(
@@ -76,6 +156,7 @@ def scan(
     *,
     http: JsonHttp,
     config: IntelConfig,
+    analyzers: Analyzers | None = None,
     sbom_path: Path | None = None,
     source: str | None = None,
     commit: str | None = None,
@@ -91,6 +172,12 @@ def scan(
     findings = gather_intel(packages, http, config)
     timings["intel"] = time.perf_counter() - started
     log.info("intel_done", findings=len(findings), kev=sum(f.signals.in_kev for f in findings))
+
+    if analyzers is not None and findings:
+        started = time.perf_counter()
+        findings = analyze(repo, packages, findings, analyzers)
+        timings["analyze"] = time.perf_counter() - started
+        log.info("analyze_done", **level_counts(findings))
 
     return ScanResult(
         source=source or str(repo),

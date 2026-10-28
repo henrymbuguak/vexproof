@@ -73,12 +73,19 @@ def test_cli_scan_writes_json(
             str(FIXTURES.parents[1] / "examples/service_profile.yaml"),
             "--json",
             str(out),
+            "--no-analysis",
         ],
     )
     assert result.exit_code == 0, result.output
     assert "3 scanner alerts" in result.output
     assert "1 alert(s) disputed" in result.output
+    assert "Evidence levels" not in result.output
     payload = json.loads(out.read_text())
+    assert payload["summary"] == {
+        "alerts": 3,
+        "levels": {"L0": 0, "L1": 0, "L2": 0, "L3": 0},
+        "cleared": 0,
+    }
     assert payload["findings"][0]["signals"]["in_kev"] is True
 
 
