@@ -2,8 +2,10 @@
 
 from vexproof.domain.models import (
     Advisory,
+    Candidate,
     Evidence,
     Finding,
+    FixCommit,
     Hop,
     Level,
     Package,
@@ -15,8 +17,10 @@ from vexproof.domain.models import (
 
 __all__ = [
     "Advisory",
+    "Candidate",
     "Evidence",
     "Finding",
+    "FixCommit",
     "Hop",
     "Level",
     "Package",

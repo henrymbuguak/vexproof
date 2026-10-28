@@ -8,6 +8,7 @@ from typing import Any
 from vexproof.domain import Advisory, Package, Reference
 from vexproof.errors import IntelError
 from vexproof.intel.fixed import fixed_version
+from vexproof.intel.fixrefs import fix_commits
 from vexproof.intel.http import DAY, JsonHttp
 from vexproof.intel.severity import cvss_vector, severity_label
 
@@ -75,4 +76,5 @@ def to_advisory(record: Mapping[str, Any], package: Package) -> Advisory:
         references=references,
         cvss_vector=cvss_vector(record),
         severity_label=severity_label(record),
+        fix_commits=fix_commits(record),
     )

@@ -10,9 +10,15 @@ import pytest
 SRC = Path(__file__).parents[1] / "src" / "vexproof"
 ALLOWED = {
     "domain": {"domain", "errors"},
-    "ingest": {"domain", "errors", "ingest"},
+    "ingest": {"domain", "errors", "ingest", "gitcmd"},
     "intel": {"domain", "errors", "intel"},
+    "sources": {"domain", "errors", "sources", "gitcmd", "intel"},
+    "static": {"domain", "errors", "static", "sources"},
 }
+
+
+def test_gitcmd_depends_only_on_errors() -> None:
+    assert _vexproof_imports(SRC / "gitcmd.py") <= {"errors"}
 
 
 def _vexproof_imports(path: Path) -> set[str]:
@@ -27,6 +33,9 @@ def _vexproof_imports(path: Path) -> set[str]:
 
 @pytest.mark.parametrize("stage", sorted(ALLOWED))
 def test_stage_imports_respect_direction(stage: str) -> None:
-    for module in (SRC / stage).rglob("*.py"):
+    stage_dir = SRC / stage
+    if not stage_dir.is_dir():
+        pytest.skip(f"stage {stage} not built yet")
+    for module in stage_dir.rglob("*.py"):
         illegal = _vexproof_imports(module) - ALLOWED[stage]
         assert not illegal, f"{module.relative_to(SRC)} imports {sorted(illegal)}"
