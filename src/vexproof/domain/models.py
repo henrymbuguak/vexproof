@@ -108,6 +108,7 @@ class Candidate(Frozen):
     file: str = Field(min_length=1, description="path inside the installed package")
     changed_lines: int = Field(ge=0, description="lines of this function the fix touched")
     commits: tuple[str, ...] = ()
+    diff: str = Field(default="", description="the fix's change to this function (-U0 hunks)")
 
 
 class Evidence(Frozen):
@@ -119,6 +120,7 @@ class Evidence(Frozen):
     fix_commits: tuple[str, ...] = ()
     vulnerable_symbols: tuple[str, ...] = ()
     symbol_quote: str | None = None
+    symbol_model: str | None = Field(default=None, description="model and prompt that chose them")
     call_chain: tuple[Hop, ...] = ()
     checks_passed: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()

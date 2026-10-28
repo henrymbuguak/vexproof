@@ -25,6 +25,7 @@ from vexproof.sources.tree import SourceTree
 from vexproof.static.functions import FunctionSpan, enclosing, function_spans
 
 MAX_COMMITS = 6
+MAX_SNIPPET_LINES = 60
 _DOC_SUFFIXES = frozenset({".rst", ".md", ".txt", ".toml", ".cfg", ".ini", ".yml", ".yaml", ""})
 
 
@@ -50,6 +51,8 @@ class _Acc:
     modules_changed: set[str] = field(default_factory=set)  # installed modules touched
     modules_absent: set[str] = field(default_factory=set)
     absent_functions: set[str] = field(default_factory=set)
+    hunks: dict[str, list[str]] = field(default_factory=dict)
+    snippet_commit: dict[str, str] = field(default_factory=dict)
     native_paths: set[str] = field(default_factory=set)
     unmapped: bool = False
     notes: list[str] = field(default_factory=list)
@@ -98,17 +101,28 @@ def map_path(repo_path: str, tree: SourceTree) -> tuple[str, str] | None:
     return best
 
 
-def _touched(patched_file: object) -> list[tuple[int, int | None]]:
-    """(pre-fix line, indent of inserted code or None) for every changed spot in one file."""
-    spots: list[tuple[int, int | None]] = []
+def _touched(patched_file: object) -> list[tuple[int, int | None, str]]:
+    """(pre-fix line, indent of inserted code or None, hunk text) for every changed spot."""
+    spots: list[tuple[int, int | None, str]] = []
     for hunk in patched_file:  # type: ignore[attr-defined]
+        text = str(hunk)
         removed = [ln.source_line_no for ln in hunk if ln.is_removed and ln.source_line_no]
-        spots += [(n, None) for n in removed]
+        spots += [(n, None, text) for n in removed]
         if not removed:  # pure insertion after line `source_start`
             added = [ln.value for ln in hunk if ln.is_added and ln.value.strip()]
             indent = len(added[0]) - len(added[0].lstrip()) if added else None
-            spots.append((max(hunk.source_start, 1), indent))
+            spots.append((max(hunk.source_start, 1), indent, text))
     return spots
+
+
+def _snippet(hunks: list[str]) -> str:
+    """The fix's diff for one function, capped so prompts stay small."""
+    lines: list[str] = []
+    for hunk in hunks:
+        lines += hunk.rstrip("\n").splitlines()
+        if len(lines) >= MAX_SNIPPET_LINES:
+            return "\n".join([*lines[:MAX_SNIPPET_LINES], "... (diff truncated)"])
+    return "\n".join(lines)
 
 
 def _apply_commit(diff: CommitDiff, tree: SourceTree, fetcher: FixSource, acc: _Acc) -> None:
@@ -141,7 +155,7 @@ def _apply_commit(diff: CommitDiff, tree: SourceTree, fetcher: FixSource, acc: _
         spans = function_spans(pre_fix) if pre_fix else []
         installed_text = tree.source(module) or ""
         installed = {s.qualname for s in function_spans(installed_text)}
-        for line, indent in _touched(patched):
+        for line, indent, hunk in _touched(patched):
             span: FunctionSpan | None = enclosing(spans, line, indent)
             if span is None:
                 continue  # module-level code: counts toward the module only
@@ -152,6 +166,11 @@ def _apply_commit(diff: CommitDiff, tree: SourceTree, fetcher: FixSource, acc: _
             acc.lines[qualname] = acc.lines.get(qualname, 0) + 1
             acc.commits.setdefault(qualname, set()).add(sha)
             acc.files[qualname] = rel
+            # One commit's view of the change is enough; backports repeat the same hunks.
+            first = acc.snippet_commit.setdefault(qualname, sha)
+            hunks = acc.hunks.setdefault(qualname, [])
+            if first == sha and hunk not in hunks:
+                hunks.append(hunk)
 
 
 def build_shortlist(advisory: Advisory, tree: SourceTree, fetcher: FixSource) -> Shortlist:
@@ -175,6 +194,7 @@ def build_shortlist(advisory: Advisory, tree: SourceTree, fetcher: FixSource) ->
             file=acc.files[q],
             changed_lines=acc.lines[q],
             commits=tuple(sorted(acc.commits[q])),
+            diff=_snippet(acc.hunks.get(q, [])),
         )
         for q in sorted(acc.lines, key=lambda q: (-acc.lines[q], q))
     )

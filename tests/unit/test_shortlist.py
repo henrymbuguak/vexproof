@@ -66,6 +66,10 @@ def test_python_fix_gives_l1_candidates(
     assert names == ["examplelib.parser.Parser.feed", "examplelib.parser.load"]
     assert result.candidates[0].changed_lines == 1  # pure insertion inside feed
     assert result.candidates[0].file == "examplelib/parser.py"
+    feed_diff = result.candidates[0].diff
+    assert feed_diff.startswith("@@ ")
+    assert '+            raise ValueError("chunk too large")' in feed_diff
+    assert "-    return eval(data)" in result.candidates[1].diff
     assert result.changed_modules == ("examplelib.parser",)
     assert result.fix_commits == (f"https://github.com/example/examplelib/commit/{upstream.fix}",)
     assert not any(
@@ -122,3 +126,12 @@ def test_no_commits_or_unreadable_commits(fetcher: GitFixFetcher, installed: Sou
 )
 def test_module_guess(path: str, module: str) -> None:
     assert _module_guess(path) == module
+
+
+def test_snippet_is_capped() -> None:
+    from vexproof.static.shortlist import MAX_SNIPPET_LINES, _snippet
+
+    hunks = ["@@ -1 +1 @@\n" + "\n".join(f"-{i}" for i in range(100))]
+    lines = _snippet(hunks).splitlines()
+    assert len(lines) == MAX_SNIPPET_LINES + 1
+    assert lines[-1] == "... (diff truncated)"
