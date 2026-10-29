@@ -22,6 +22,8 @@ ALLOWED = {
     "evidence": {"domain", "errors", "evidence", "llm", "prompts", "static"},
     # reports read finished findings only: they cannot change a verdict or call the model
     "report": {"domain", "errors", "report"},
+    # evaluation reads findings and an observation; it reuses how clears pick their modules
+    "evaluate": {"domain", "errors", "evaluate", "evidence", "symbols"},
 }
 
 
