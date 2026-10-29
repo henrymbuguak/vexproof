@@ -40,7 +40,7 @@ class ProjectScan:
     computed_dynamic_imports: list[str] = field(default_factory=list)  # "path:line"
 
 
-def _python_files(root: Path) -> list[PurePosixPath]:
+def python_files(root: Path) -> list[PurePosixPath]:
     found: list[PurePosixPath] = []
     for current, dirs, files in os.walk(root):
         here = Path(current)
@@ -55,17 +55,17 @@ def _python_files(root: Path) -> list[PurePosixPath]:
     return [PurePosixPath(*p.parts) for p in found]
 
 
-def _import_path(rel: PurePosixPath) -> PurePosixPath:
+def import_path(rel: PurePosixPath) -> PurePosixPath:
     return PurePosixPath(*rel.parts[1:]) if rel.parts[0] == "src" and len(rel.parts) > 1 else rel
 
 
 def scan_project(root: Path) -> ProjectScan:
     scan = ProjectScan()
-    for rel in _python_files(root):
+    for rel in python_files(root):
         path = root.joinpath(*rel.parts)
         if path.stat().st_size > MAX_FILE_BYTES:
             continue
-        import_rel = _import_path(rel)
+        import_rel = import_path(rel)
         module = module_name(str(import_rel))
         if module:
             scan.local_modules.add(module.split(".")[0])
