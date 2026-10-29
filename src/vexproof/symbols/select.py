@@ -14,6 +14,9 @@ PROMPT_VERSION = "symbol_pick.v1"
 PURPOSE = "symbol_pick"
 MAX_CANDIDATES = 12
 MAX_ADVISORY_CHARS = 6000
+# Reasoning models (Muse Spark, Muse Spark Open) spend output tokens on thinking before the JSON
+# answer; too low a cap cuts the answer off. Only tokens actually generated are billed.
+MAX_OUTPUT_TOKENS = 4096
 
 
 class SymbolPick(BaseModel):
@@ -62,5 +65,5 @@ def pick_symbols(finding: Finding, caller: StructuredCaller) -> SymbolPick:
         prompt_version=PROMPT_VERSION,
         system=load_prompt(PROMPT_VERSION),
         user=render_user(finding),
-        max_output_tokens=1500,
+        max_output_tokens=MAX_OUTPUT_TOKENS,
     )

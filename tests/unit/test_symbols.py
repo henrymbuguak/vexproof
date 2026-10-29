@@ -10,7 +10,13 @@ from vexproof.errors import IngestError
 from vexproof.llm.structured import StructuredCaller
 from vexproof.symbols.apply import CHECKS, apply_outcome
 from vexproof.symbols.gold import GoldCase, judge, load_gold
-from vexproof.symbols.select import MAX_CANDIDATES, SymbolPick, pick_symbols, render_user
+from vexproof.symbols.select import (
+    MAX_CANDIDATES,
+    MAX_OUTPUT_TOKENS,
+    SymbolPick,
+    pick_symbols,
+    render_user,
+)
 from vexproof.symbols.verify import Rejected, Verified, normalise, verify
 
 GOLD = Path(__file__).parents[2] / "eval/gold/symbols.yaml"
@@ -51,6 +57,7 @@ def test_pick_symbols_sends_the_versioned_prompt() -> None:
     assert (request.purpose, request.prompt_version) == ("symbol_pick", "symbol_pick.v1")
     assert "untrusted" in request.system
     assert request.schema["additionalProperties"] is False
+    assert request.max_output_tokens == MAX_OUTPUT_TOKENS  # room for reasoning models
 
 
 # -- verifier ----------------------------------------------------------------------------------

@@ -19,11 +19,25 @@ from vexproof.errors import VexproofError
 from vexproof.ingest.repo import checkout
 from vexproof.intel.cache import Cache
 from vexproof.intel.http import JsonHttp, make_client
+from vexproof.llm.budget import UsageReport
+from vexproof.llm.factory import ModelConfig, ModelStack, build_stack, list_models
+from vexproof.llm.meta import Api
+from vexproof.llm.recording import Mode
+from vexproof.llm.types import ModelError
 from vexproof.logging import configure_logging
-from vexproof.pipeline import Analyzers, IntelConfig, ScanResult, level_counts, scan
+from vexproof.modelcheck import MIN_ACCURACY, GoldReport, ping, run_gold
+from vexproof.pipeline import (
+    Analyzers,
+    IntelConfig,
+    ScanResult,
+    level_counts,
+    scan,
+    selection_counts,
+)
 from vexproof.sources.git import GitFixFetcher
 from vexproof.sources.pypi import PyPIClient
 from vexproof.sources.store import SourceStore
+from vexproof.symbols.gold import load_gold
 
 app = typer.Typer(help="Which dependency vulnerabilities actually reach your code, with proof.")
 console = Console()
@@ -43,6 +57,10 @@ def _sort_key(finding: Finding) -> tuple[str, bool, float, float, str]:
 
 
 def _note(finding: Finding) -> str:
+    if finding.evidence and finding.evidence.vulnerable_symbols:
+        first = finding.evidence.vulnerable_symbols[0]
+        more = len(finding.evidence.vulnerable_symbols) - 1
+        return "picked: " + first + (f" (+{more})" if more else "")
     if finding.evidence and finding.evidence.candidates:
         first = finding.evidence.candidates[0].qualname
         more = len(finding.evidence.candidates) - 1
@@ -102,6 +120,43 @@ def _render_funnel(findings: tuple[Finding, ...]) -> None:
         f"Alert noise reduction so far: [bold]{100 * cleared / len(findings):.1f}%[/bold] "
         f"({cleared} of {len(findings)} cleared). Function-level checks come next."
     )
+    picked = selection_counts(findings)
+    if any(picked.values()):
+        console.print(
+            f"Symbol selection on L1 alerts: [bold]{picked['picked']} verified picks[/bold], "
+            f"{picked['none_match']} where no changed function matches, "
+            f"{picked['rejected']} rejected by the verifier, {picked['failed']} failed"
+        )
+
+
+def _render_usage(stack: ModelStack, settings: Settings) -> None:
+    report: UsageReport = stack.budget.report
+    total = report.total
+    if not total.calls:
+        return
+    cost = report.cost_usd(settings.price_input_per_m, settings.price_output_per_m)
+    console.print(
+        f"Model {stack.label}: {total.calls} call(s), {total.replayed} replayed from recordings, "
+        f"{total.input_tokens:,} input + {total.output_tokens:,} output tokens"
+        + (f", about ${cost:.4f}" if cost is not None else "")
+    )
+
+
+def _model_config(
+    settings: Settings, *, api: Api | None = None, mode: Mode | None = None
+) -> ModelConfig:
+    key = settings.model_api_key.get_secret_value() if settings.model_api_key else None
+    return ModelConfig(
+        api_key=key or None,
+        base_url=settings.model_base_url,
+        model=settings.model,
+        api=api or settings.model_api,
+        mode=mode or settings.model_mode,
+        max_tokens=settings.model_max_tokens,
+        recordings_dir=settings.cache_dir / "model",
+        timeout_s=settings.model_timeout_s,
+        workers=settings.model_workers,
+    )
 
 
 def _payload(result: ScanResult) -> dict[str, object]:
@@ -112,6 +167,7 @@ def _payload(result: ScanResult) -> dict[str, object]:
             "alerts": len(result.findings),
             "levels": level_counts(result.findings),
             "cleared": sum(1 for f in result.findings if f.verdict is Verdict.NOT_AFFECTED),
+            "selection": selection_counts(result.findings),
         },
         "packages": [p.model_dump(mode="json") for p in result.packages],
         "findings": [f.model_dump(mode="json") for f in result.findings],
@@ -136,6 +192,13 @@ def scan_command(
     analysis: Annotated[
         bool, typer.Option(help="Analyse imports and fix commits (off: intel only)")
     ] = True,
+    model: Annotated[
+        bool | None,
+        typer.Option(
+            "--model/--no-model",
+            help="Ask the model to pick vulnerable functions (default: on when one is configured)",
+        ),
+    ] = None,
     workspace: Annotated[Path, typer.Option(help="Where GitHub repos are cloned")] = Path(
         ".vexproof-cache/repos"
     ),
@@ -156,6 +219,11 @@ def scan_command(
             repo_path = Path(target).resolve()
             if not repo_path.is_dir():
                 raise typer.BadParameter(f"{target} is not a directory")
+        stack: ModelStack | None = None
+        model_config = _model_config(settings)
+        use_model = model if model is not None else model_config.ready
+        if use_model and analysis:
+            stack = build_stack(model_config)
         cache = Cache(settings.cache_dir / "http.sqlite3")
         try:
             with make_client(settings.user_agent, settings.http_timeout_s) as client:
@@ -181,6 +249,7 @@ def scan_command(
                         settings.osv_url, settings.kev_url, settings.epss_url, settings.workers
                     ),
                     analyzers=analyzers,
+                    model=stack,
                     sbom_path=sbom,
                     source=target,
                     commit=resolved_commit,
@@ -192,6 +261,8 @@ def scan_command(
         raise typer.Exit(code=2) from exc
 
     _render(result, service_profile)
+    if stack is not None:
+        _render_usage(stack, settings)
     if json_out:
         json_out.write_text(json.dumps(_payload(result), indent=2) + "\n", encoding="utf-8")
         console.print(f"wrote {json_out}")
@@ -245,6 +316,11 @@ def _show(f: Finding) -> None:
     verdict = f.verdict.value if f.verdict else "pending"
     say(f"evidence level: [bold]{ev.level.value}[/bold] ({LEVEL_LABELS[ev.level.value]})")
     say(f"verdict: {verdict}" + (f" ({f.justification})" if f.justification else ""))
+    if ev.vulnerable_symbols:
+        picked = ", ".join(ev.vulnerable_symbols)
+        say(f"[bold]picked:[/bold] {picked}  [dim]({ev.symbol_model})[/dim]")
+    if ev.symbol_quote:
+        say(f'  advisory says: "{ev.symbol_quote}"')
     for candidate in ev.candidates:
         commits = ", ".join(candidate.commits)
         say(
@@ -259,6 +335,93 @@ def _show(f: Finding) -> None:
         say(f"  check passed: {check}")
     for note in ev.notes:
         say(f"  note: {note}")
+
+
+@app.command("check-model")
+def check_model_command(
+    findings_json: Annotated[
+        Path | None,
+        typer.Argument(help="JSON from `vexproof scan --json` to run the gold symbol test on"),
+    ] = None,
+    gold: Annotated[Path, typer.Option(help="Gold labels for symbol selection")] = Path(
+        "eval/gold/symbols.yaml"
+    ),
+) -> None:
+    """Go/no-go for the Model API: key, models, structured output, then the gold symbol test."""
+    configure_logging()
+    settings = Settings()
+    config = _model_config(settings)
+    say = functools.partial(console.print, soft_wrap=True)
+    say(f"endpoint: {config.base_url} | model: {config.model} | api: {config.api}")
+    if config.local:
+        say("local model server: no API key needed")
+    elif not config.api_key:
+        say("[red]NO-GO[/red]: MODEL_API_KEY is not set (add it to .env)")
+        raise typer.Exit(code=1)
+    try:
+        models = list_models(config.api_key or "local", config.base_url)
+        say(f"models available: {', '.join(models) or '(none listed)'}")
+        if models and config.model not in models and f"{config.model}:latest" not in models:
+            say(f"[yellow]warning[/yellow]: {config.model} is not in that list; set VEXPROOF_MODEL")
+    except ModelError as exc:
+        say(f"[yellow]warning[/yellow]: {exc}")
+
+    result = ping(
+        lambda api: build_stack(_model_config(settings, api=api, mode="live")), prefer=config.api
+    )
+    for api, error in result.errors.items():
+        say(f"  {api} API: [red]failed[/red]: {error}")
+    if result.api is None:
+        say("[red]NO-GO[/red]: structured output works on neither API")
+        raise typer.Exit(code=1)
+    say(f"structured output: [green]ok[/green] on the {result.api} API")
+    if result.api != config.api:
+        say(f"  set VEXPROOF_MODEL_API={result.api} in .env")
+    if findings_json is None:
+        say("connection: [green]GO[/green]. Next: scan with --no-model --json, then pass that file")
+        return
+
+    try:
+        data = json.loads(findings_json.read_text(encoding="utf-8"))
+        findings = [Finding.model_validate(f) for f in data["findings"]]
+        cases = load_gold(gold)
+        stack = build_stack(_model_config(settings, api=result.api))
+        report = run_gold(cases, findings, stack)
+    except (OSError, ValueError, KeyError) as exc:
+        console.print(f"[red]error:[/red] cannot read {findings_json}: {exc}")
+        raise typer.Exit(code=2) from exc
+    except VexproofError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    _render_gold(report)
+    _render_usage(stack, settings)
+    if not report.go:
+        raise typer.Exit(code=1)
+
+
+def _render_gold(report: GoldReport) -> None:
+    table = Table(title="Gold symbol-selection test")
+    for column in ("Advisory", "Result", "Model answer", "Detail"):
+        table.add_column(column, overflow="fold")
+    colour = {"correct": "green", "wrong": "red", "rejected": "red"}
+    for row in report.rows:
+        style = colour.get(row.result, "yellow")
+        table.add_row(
+            row.case.advisory,
+            f"[{style}]{row.result}[/{style}]",
+            ", ".join(row.selected) or "-",
+            row.detail[:120],
+        )
+    console.print(table)
+    missing = report.count("missing")
+    console.print(
+        f"{report.count('correct')}/{report.scored} correct ({100 * report.accuracy:.0f}%, "
+        f"need {100 * MIN_ACCURACY:.0f}%), {report.hallucinations} invented name(s), "
+        f"{report.count('error')} error(s)"
+        + (f", {missing} gold case(s) not in this findings file" if missing else "")
+    )
+    verdict = "[green]GO[/green]" if report.go else "[red]NO-GO[/red]"
+    console.print(f"verdict: {verdict}")
 
 
 @app.command("version")

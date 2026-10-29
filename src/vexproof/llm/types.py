@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 from vexproof.errors import VexproofError
 
@@ -59,3 +60,11 @@ class Transport(Protocol):
     def model(self) -> str: ...
 
     def complete(self, request: ModelRequest) -> ModelResponse: ...
+
+
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "host.docker.internal"})
+
+
+def is_local_endpoint(base_url: str) -> bool:
+    """A model server on this machine (e.g. Ollama) needs no API key."""
+    return (urlsplit(base_url).hostname or "") in _LOCAL_HOSTS

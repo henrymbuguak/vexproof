@@ -1,7 +1,8 @@
 """Orchestrates the stages. This is the only module where stages meet.
 
-Stages so far: ingest -> intel -> analyze (Level 0 import closure, fix-commit shortlists).
-Later chapters add symbol selection, the evidence engine, prioritization and reporting.
+Stages so far: ingest -> intel -> analyze (Level 0 import closure, fix-commit shortlists)
+-> select (Muse Spark picks the vulnerable function; a verifier checks it).
+Later chapters add the evidence engine, prioritization and reporting.
 """
 
 from __future__ import annotations
@@ -25,12 +26,17 @@ from vexproof.intel.epss import load_epss
 from vexproof.intel.http import JsonHttp
 from vexproof.intel.kev import load_kev
 from vexproof.intel.osv import OSVClient
+from vexproof.llm.factory import ModelStack
+from vexproof.llm.types import BudgetExceededError, ModelError
 from vexproof.sources.git import GitFixFetcher
 from vexproof.sources.store import SourceStore
 from vexproof.static.closure import reachability
 from vexproof.static.levels import NOT_IN_EXECUTE_PATH, level0
 from vexproof.static.project import scan_project
 from vexproof.static.shortlist import FixSource, build_shortlist
+from vexproof.symbols.apply import apply_outcome
+from vexproof.symbols.select import pick_symbols
+from vexproof.symbols.verify import Rejected, Verified, verify
 
 log = structlog.get_logger(__name__)
 
@@ -143,6 +149,56 @@ def analyze(
         return tuple(pool.map(evidence_for, findings))
 
 
+def needs_selection(finding: Finding) -> bool:
+    evidence = finding.evidence
+    return bool(evidence and evidence.level is Level.L1_SYMBOL and evidence.candidates)
+
+
+def select_symbols(
+    findings: Sequence[Finding], stack: ModelStack, workers: int | None = None
+) -> tuple[Finding, ...]:
+    """Ask the model to pick the vulnerable function(s) for every L1 finding, then verify."""
+
+    def one(finding: Finding) -> Finding:
+        if not needs_selection(finding):
+            return finding
+        try:
+            outcome: Verified | Rejected = verify(pick_symbols(finding, stack.caller), finding)
+        except BudgetExceededError as exc:
+            return _note(finding, f"symbol selection skipped: {exc}")
+        except ModelError as exc:
+            return _note(finding, f"symbol selection failed: {exc}")
+        return apply_outcome(finding, outcome, f"{stack.label} / symbol_pick.v1")
+
+    with ThreadPoolExecutor(max_workers=workers or stack.workers) as pool:
+        return tuple(pool.map(one, findings))
+
+
+def _note(finding: Finding, note: str) -> Finding:
+    if finding.evidence is None:
+        return finding
+    evidence = finding.evidence.model_copy(update={"notes": (*finding.evidence.notes, note)})
+    return finding.model_copy(update={"evidence": evidence})
+
+
+def selection_counts(findings: Sequence[Finding]) -> dict[str, int]:
+    counts = {"picked": 0, "none_match": 0, "rejected": 0, "failed": 0}
+    for finding in findings:
+        evidence = finding.evidence
+        if evidence is None or evidence.level is not Level.L1_SYMBOL:
+            continue
+        notes = " ".join(evidence.notes)
+        if evidence.vulnerable_symbols:
+            counts["picked"] += 1
+        elif "none of the changed functions" in notes:
+            counts["none_match"] += 1
+        elif "rejected by verifier" in notes:
+            counts["rejected"] += 1
+        elif "symbol selection" in notes:
+            counts["failed"] += 1
+    return counts
+
+
 def level_counts(findings: Sequence[Finding]) -> dict[str, int]:
     counts = {level.value: 0 for level in Level}
     for finding in findings:
@@ -157,6 +213,7 @@ def scan(
     http: JsonHttp,
     config: IntelConfig,
     analyzers: Analyzers | None = None,
+    model: ModelStack | None = None,
     sbom_path: Path | None = None,
     source: str | None = None,
     commit: str | None = None,
@@ -178,6 +235,12 @@ def scan(
         findings = analyze(repo, packages, findings, analyzers)
         timings["analyze"] = time.perf_counter() - started
         log.info("analyze_done", **level_counts(findings))
+
+    if model is not None and any(needs_selection(f) for f in findings):
+        started = time.perf_counter()
+        findings = select_symbols(findings, model)
+        timings["select"] = time.perf_counter() - started
+        log.info("select_done", **selection_counts(findings))
 
     return ScanResult(
         source=source or str(repo),

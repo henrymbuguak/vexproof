@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,6 +31,19 @@ class Settings(BaseSettings):
     workers: int = Field(default=8, ge=1, le=32, alias="VEXPROOF_WORKERS")
     # Secrets are optional here; each stage that needs one checks and fails with a clear message.
     model_api_key: SecretStr | None = Field(default=None, alias="MODEL_API_KEY")
+    model_base_url: str = Field(default="https://api.meta.ai/v1", alias="VEXPROOF_MODEL_BASE_URL")
+    model: str = Field(default="muse-spark-1.1", alias="VEXPROOF_MODEL")
+    model_api: Literal["responses", "chat"] = Field(default="responses", alias="VEXPROOF_MODEL_API")
+    model_mode: Literal["cache", "replay", "live"] = Field(
+        default="cache", alias="VEXPROOF_MODEL_MODE"
+    )
+    model_max_tokens: int = Field(default=1_000_000, gt=0, alias="VEXPROOF_MODEL_MAX_TOKENS")
+    model_timeout_s: float = Field(default=120.0, gt=0, alias="VEXPROOF_MODEL_TIMEOUT_S")
+    model_workers: int = Field(default=4, ge=1, le=32, alias="VEXPROOF_MODEL_WORKERS")
+    price_input_per_m: float | None = Field(default=None, ge=0, alias="VEXPROOF_PRICE_INPUT_PER_M")
+    price_output_per_m: float | None = Field(
+        default=None, ge=0, alias="VEXPROOF_PRICE_OUTPUT_PER_M"
+    )
 
     @property
     def user_agent(self) -> str:

@@ -20,6 +20,7 @@ from vexproof.llm.types import (
     ModelOutputInvalidError,
     ModelReplayMissError,
     ModelRequest,
+    is_local_endpoint,
 )
 
 BASE = "https://api.test/v1"
@@ -178,6 +179,35 @@ def _config(tmp_path: Path, **changes: object) -> ModelConfig:
     return ModelConfig(**values)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    ("url", "local"),
+    [
+        ("http://localhost:11434/v1", True),
+        ("http://127.0.0.1:11434/v1", True),
+        ("http://[::1]:11434/v1", True),
+        ("http://host.docker.internal:11434/v1", True),
+        ("https://api.meta.ai/v1", False),
+        ("https://localhost.example.com/v1", False),
+    ],
+)
+def test_is_local_endpoint(url: str, local: bool) -> None:
+    assert is_local_endpoint(url) is local
+
+
+def test_local_server_needs_no_key(tmp_path: Path) -> None:
+    config = _config(
+        tmp_path,
+        base_url="http://localhost:11434/v1",
+        model="llama3.1:8b",
+        api="chat",
+        timeout_s=600.0,
+        workers=1,
+    )
+    assert config.ready
+    stack = build_stack(config)
+    assert (stack.label, stack.workers) == ("llama3.1:8b", 1)
+
+
 def test_build_stack_needs_a_key_unless_replaying(tmp_path: Path) -> None:
     with pytest.raises(ModelError, match="MODEL_API_KEY"):
         build_stack(_config(tmp_path))
@@ -322,6 +352,68 @@ def test_meta_error_messages(status: int, message: str) -> None:
     with pytest.raises(ModelError, match=message):
         meta.complete(_request())
     assert len(seen) == 1  # not retried
+
+
+OLLAMA = "http://localhost:11434/v1"
+# The shape Ollama's OpenAI-compatible /v1/chat/completions returns
+OLLAMA_CHAT_BODY = {
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1761700000,
+    "model": "llama3.1:8b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": '{"name": "local", "score": 1, "note": null}',
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {"prompt_tokens": 420, "completion_tokens": 25, "total_tokens": 445},
+}
+
+
+def _local(*responses: httpx2.Response) -> tuple[MetaTransport, list[httpx2.Request]]:
+    queue = list(responses)
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        reply = queue.pop(0)
+        if reply.status_code == 599:  # stand-in for "nothing is listening"
+            raise httpx2.ConnectError("connection refused", request=request)
+        return reply
+
+    http = httpx2.Client(transport=httpx2.MockTransport(handler))
+    client = openai.OpenAI(api_key="local", base_url=OLLAMA, max_retries=0, http_client=http)
+    transport = MetaTransport(
+        api_key="local", base_url=OLLAMA, model="llama3.1:8b", api="chat", client=client
+    )
+    return transport, seen
+
+
+def test_ollama_chat_structured_output() -> None:
+    meta, seen = _local(httpx2.Response(200, json=OLLAMA_CHAT_BODY))
+    caller = StructuredCaller(meta)
+    answer = caller.ask(Answer, purpose="t", prompt_version="t.v1", system="s", user="u")
+    assert answer == Answer(name="local", score=1)
+    assert str(seen[0].url) == f"{OLLAMA}/chat/completions"
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "llama3.1:8b"
+    assert sent["response_format"]["json_schema"]["strict"] is True
+
+
+def test_local_server_errors_say_what_to_do() -> None:
+    down, seen = _local(*[httpx2.Response(599)] * 4)
+    with pytest.raises(ModelError, match=r"localhost:11434.*ollama serve"):
+        down.complete(_request())
+    assert len(seen) == 4
+    missing, _ = _local(httpx2.Response(404, json={"error": {"message": "model not found"}}))
+    with pytest.raises(ModelError, match=r"ollama pull llama3\.1:8b"):
+        missing.complete(_request())
 
 
 def test_meta_gives_up_on_persistent_server_errors() -> None:

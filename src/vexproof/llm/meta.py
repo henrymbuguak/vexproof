@@ -1,8 +1,9 @@
-"""Meta Model API (OpenAI-compatible) transport for Muse Spark.
+"""OpenAI-compatible transport: the Meta Model API (Muse Spark) or a local server (Ollama, Llama).
 
 Meta recommends the Responses API for Muse Spark; Chat Completions is available as a fallback
-(`VEXPROOF_MODEL_API=chat`). Both use JSON-schema structured output. Transient failures (network,
-429, 5xx) are retried with backoff; authentication, billing and request errors are not.
+(`VEXPROOF_MODEL_API=chat`), and is what local servers such as Ollama support best. Both use
+JSON-schema structured output. Transient failures (network, 429, 5xx) are retried with backoff;
+authentication, billing and request errors are not.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from typing import Literal
 import openai
 import stamina
 
-from vexproof.llm.types import ModelError, ModelRequest, ModelResponse
+from vexproof.llm.types import ModelError, ModelRequest, ModelResponse, is_local_endpoint
 
 Api = Literal["responses", "chat"]
 _TRANSIENT = (
@@ -39,6 +40,8 @@ class MetaTransport:
         )
         self._model = model
         self._api = api
+        self._base_url = base_url
+        self._local = is_local_endpoint(base_url)
 
     @property
     def model(self) -> str:
@@ -52,12 +55,16 @@ class MetaTransport:
         except openai.PermissionDeniedError as exc:
             raise ModelError(f"the Model API denied access: {exc.message}") from exc
         except openai.NotFoundError as exc:
+            hint = f" (or `ollama pull {self._model}`)" if self._local else ""
             raise ModelError(
                 f"model {self._model!r} or endpoint not found; run `vexproof check-model` "
-                "to list available models"
+                f"to list available models{hint}"
             ) from exc
         except _TRANSIENT as exc:  # before APIStatusError: 429 and 5xx errors subclass it
-            raise ModelError(f"Model API unavailable after retries: {exc}") from exc
+            hint = " Is the local model server running (`ollama serve`)?" if self._local else ""
+            raise ModelError(
+                f"Model API at {self._base_url} unavailable after retries: {exc}.{hint}"
+            ) from exc
         except openai.APIStatusError as exc:
             hint = " (billing or credits?)" if exc.status_code == 402 else ""  # noqa: PLR2004
             raise ModelError(f"Model API error {exc.status_code}{hint}: {exc.message}") from exc

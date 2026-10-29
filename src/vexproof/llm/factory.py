@@ -11,7 +11,7 @@ from vexproof.llm.budget import BudgetTransport
 from vexproof.llm.meta import Api, MetaTransport
 from vexproof.llm.recording import Mode, RecordingTransport
 from vexproof.llm.structured import StructuredCaller
-from vexproof.llm.types import ModelError, Transport
+from vexproof.llm.types import ModelError, Transport, is_local_endpoint
 
 
 @dataclass(frozen=True)
@@ -23,12 +23,24 @@ class ModelConfig:
     mode: Mode = "cache"
     max_tokens: int = 1_000_000
     recordings_dir: Path = Path(".vexproof-cache/model")
+    timeout_s: float = 120.0
+    workers: int = 4
+
+    @property
+    def local(self) -> bool:
+        return is_local_endpoint(self.base_url)
+
+    @property
+    def ready(self) -> bool:
+        """Enough configuration to call (or replay) a model."""
+        return bool(self.api_key) or self.local or self.mode == "replay"
 
 
 @dataclass
 class ModelStack:
     caller: StructuredCaller
     budget: BudgetTransport
+    workers: int = 4
 
     @property
     def label(self) -> str:
@@ -38,14 +50,18 @@ class ModelStack:
 def build_stack(config: ModelConfig, live: Transport | None = None) -> ModelStack:
     """Budget -> recording -> live transport. `live` lets tests inject a scripted transport."""
     if live is None and config.mode != "replay":
-        if not config.api_key:
+        if not config.ready:
             raise ModelError("MODEL_API_KEY is not set; add it to .env or use --no-model")
         live = MetaTransport(
-            api_key=config.api_key, base_url=config.base_url, model=config.model, api=config.api
+            api_key=config.api_key or "local",  # local servers ignore the key; the SDK needs one
+            base_url=config.base_url,
+            model=config.model,
+            api=config.api,
+            timeout_s=config.timeout_s,
         )
     recorder = RecordingTransport(live, config.recordings_dir, config.mode, model=config.model)
     budget = BudgetTransport(recorder, config.max_tokens)
-    return ModelStack(caller=StructuredCaller(budget), budget=budget)
+    return ModelStack(caller=StructuredCaller(budget), budget=budget, workers=config.workers)
 
 
 def list_models(api_key: str, base_url: str, client: openai.OpenAI | None = None) -> list[str]:
