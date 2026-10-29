@@ -13,8 +13,8 @@ Oracle: the project run under `shop.py` (30 steps) on Python 3.8.20 with django 
 | Reachable alerts whose vulnerable function ran | 12 of 13 (1 not exercised by the workload) |
 | Open alerts whose picked function ran | 2 |
 | Function picks matching gold labels | 13 of 13 |
-| Model cost (as if nothing were replayed) | $0.0142 total, $0.00015 per alert |
-| Scan time | 484 s |
+| Model cost of a scan without recordings | $1.1040 total, $0.01174 per alert |
+| Scan time | 14 s |
 
 ## Reachable alerts
 
