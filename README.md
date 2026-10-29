@@ -69,6 +69,25 @@ call path from your code (uncertain hops reviewed by muse-spark-open:cloud / tra
      PIL.IcoImagePlugin.IcoFile.frame            PIL/IcoImagePlugin.py:153 via call
 ```
 
+### What to fix first
+
+Evidence decides *whether* an alert matters; exploit signals and your service profile decide
+*how soon*. `vexproof report` turns a findings file into a ranked list with reasons, the smallest
+upgrade per package, an [OpenVEX](https://openvex.dev) document and a self-contained HTML report.
+
+| Priority | Rule |
+| --- | --- |
+| **fix now** | reachable, and listed in CISA KEV, or EPSS ≥ 10%, or critical severity, or high severity in an internet-facing service whose criticality is not low |
+| **fix soon** | reachable otherwise |
+| **review** | open; known-exploited first, then by severity and EPSS |
+| **not affected** | cleared with evidence |
+
+The profile (`examples/service_profile.yaml`) only moves alerts between *fix now* and *fix soon*;
+it never changes a verdict. In the OpenVEX output, cleared alerts are `not_affected` with
+`vulnerable_code_not_in_execute_path` and the evidence as impact statement; reachable alerts are
+`affected` with the upgrade as action statement and the verified call path in `status_notes`;
+open alerts are `under_investigation` with the reason.
+
 Nothing is installed or executed: package code comes from wheels read as data, and fix commits are
 fetched with `git fetch --depth=2 --filter=blob:none` (no token or API needed).
 
@@ -81,7 +100,12 @@ uv run vexproof scan path/to/python/project            # needs syft installed, o
 uv run vexproof scan path/to/project --sbom sbom.json  # use an existing CycloneDX/SPDX SBOM
 uv run vexproof scan https://github.com/<owner>/<repo> --commit <sha> --json findings.json
 uv run vexproof show findings.json CVE-2019-19844       # explain one alert
+uv run vexproof report findings.json --profile examples/service_profile.yaml \
+    --html report.html --openvex vex.json              # what to fix first; exports
 ```
+
+`scan` takes `--html` and `--openvex` too. The HTML report is one file with no scripts and a
+Content-Security-Policy that forbids them; every advisory and model text in it is escaped.
 
 With a model configured, `scan` also picks vulnerable functions and reviews call paths
 (`--no-model` turns the model off; `--no-trace` skips call paths only).
@@ -114,7 +138,7 @@ All code in this repository was written during the event (Oct 26 – Nov 4, 2026
 history shows its progression.
 
 - **Meta models:** Muse Spark via the Meta Model API (OpenAI-compatible SDK): symbol selection
-  from Chapter 3; the evidence engine and summaries follow. Prompts are versioned files in
+  from Chapter 3, call-path review from Chapter 4. Prompts are versioned files in
   `src/vexproof/prompts/`.
 - **Third-party libraries (dependencies, not our code):** pydantic, pydantic-settings, httpx,
   stamina, packaging, cvss, PyYAML, typer, rich, structlog, unidiff, openai; FastAPI, Jinja2,
@@ -122,6 +146,8 @@ history shows its progression.
 - **External tools:** [Syft](https://github.com/anchore/syft) for SBOM generation;
   optionally [Ollama](https://ollama.com) to serve Meta's open-weight models (Muse Spark Open,
   Llama).
+- **Standards:** [OpenVEX v0.2.0](https://github.com/openvex/spec) for the VEX export and
+  [package URLs](https://github.com/package-url/purl-spec) to name products.
 - **Data sources:** [OSV.dev](https://osv.dev) (including GitHub Security Advisories and the PyPA
   advisory database), [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog),
   [FIRST EPSS](https://www.first.org/epss/), [PyPI](https://pypi.org) (package files, verified by

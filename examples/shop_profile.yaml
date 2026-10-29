@@ -1,0 +1,8 @@
+# Service profile for the demo target, henrymbuguak/Shopping-Cart-Using-Django-2.0-and-Python-3.6.
+# It changes priority (fix now vs fix soon), never whether code is reachable.
+service: shopping-cart
+internet_facing: true          # a public storefront
+handles_personal_data: true    # orders hold names, emails and addresses
+criticality: high              # takes payments
+entrypoints:
+  - myshop/urls.py
