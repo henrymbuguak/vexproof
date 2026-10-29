@@ -19,6 +19,7 @@ project code that imports by computed name.
 from __future__ import annotations
 
 import json
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -130,8 +131,13 @@ def _load(
 
 
 def _close(reach: ModuleReach, scans: Mapping[str, ModuleImports]) -> None:
-    """Grow `reach.reached` from project code until no import, string or rule adds a module."""
-    frontier: list[str] = []
+    """Grow `reach.reached` from project code until no import, string or rule adds a module.
+
+    Breadth-first, so each module's recorded reason is a shortest chain from project code:
+    `why()` then explains `django.contrib.auth.forms` through the admin your code mounts, not
+    through a test runner named in Django's default settings.
+    """
+    frontier: deque[str] = deque()
 
     def add(module: str | None, reason: str, via: str | None = None) -> None:
         if module is None or module in reach.reached:
@@ -160,7 +166,7 @@ def _close(reach: ModuleReach, scans: Mapping[str, ModuleImports]) -> None:
         add(module, "project code")
     while frontier:
         while frontier:
-            module = frontier.pop()
+            module = frontier.popleft()
             scan = scans[module]
             for name in sorted(scan.imports | scan.dynamic_literals):
                 add(resolve(name), f"imported by {module}", module)

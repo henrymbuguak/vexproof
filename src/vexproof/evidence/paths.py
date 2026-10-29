@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from vexproof.domain import Hop
 from vexproof.static.codeindex import CodeIndex, Scope, Site
-from vexproof.static.django_routes import admin_upload_routes
+from vexproof.static.django_routes import admin_login_routes, admin_upload_routes
 
 MAX_HOPS = 30
 MAX_SEARCHES = 6
@@ -142,7 +142,7 @@ def registry_edges(index: CodeIndex) -> dict[str, list[tuple[Scope, int, str]]]:
             callees += [s for s in code.scopes.values() if s.kind == "function"]
         else:
             callees += [s for s in code.scopes.values() if s.name in HTTP_METHODS and s.cls]
-    for route in admin_upload_routes(index):
+    for route in [*admin_upload_routes(index), *admin_login_routes(index)]:
         caller, callee = index.scope(route.caller), index.scope(route.callee)
         if caller is None or callee is None:
             continue

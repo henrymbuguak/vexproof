@@ -10,6 +10,12 @@ A route is reported only when all three are visible in project code:
 - a model class with a `models.ImageField(...)` or `models.FileField(...)` attribute;
 - `admin.site.register(Model, ...)` or `@admin.register(Model)` for that model;
 - the admin site's URLs mounted somewhere (`admin.site.urls`).
+
+The second route is the admin login page. Mounting the admin site serves `login/`, and
+`AdminSite.login` validates every attempt with `AdminAuthenticationForm` unless the project sets
+its own `login_form`; that form's `clean()` (inherited from `AuthenticationForm`) checks the
+username and password a visitor typed. Reported when the admin site is mounted and project code
+never assigns `login_form`.
 """
 
 from __future__ import annotations
@@ -115,12 +121,59 @@ def _registrations(index: CodeIndex) -> list[tuple[str, int, str]]:
     return found
 
 
-def _admin_mounted(index: CodeIndex) -> bool:
-    for module in index.reach.project_modules:
+def _admin_mounts(index: CodeIndex) -> list[tuple[str, int]]:
+    """(project module, line) of every `admin.site.urls` in project code."""
+    found = []
+    for module in sorted(index.reach.project_modules):
         scope = index.scope(module)
-        if scope and any(s.name == "urls" and s.ref.startswith(_ADMIN) for s in scope.sites):
-            return True
+        if scope:
+            found += [
+                (module, s.line)
+                for s in scope.sites
+                if s.name == "urls" and s.ref.startswith(_ADMIN)
+            ]
+    return found
+
+
+def _admin_mounted(index: CodeIndex) -> bool:
+    return bool(_admin_mounts(index))
+
+
+def _sets_login_form(index: CodeIndex) -> bool:
+    for _, tree, _, _ in _modules(index):
+        for node in ast.walk(tree):
+            targets = node.targets if isinstance(node, ast.Assign) else []
+            for target in targets:
+                name = target.attr if isinstance(target, ast.Attribute) else ""
+                name = target.id if isinstance(target, ast.Name) else name
+                if name == "login_form":
+                    return True
     return False
+
+
+ADMIN_LOGIN_FORM = "django.contrib.admin.forms.AdminAuthenticationForm"
+
+
+def admin_login_routes(index: CodeIndex) -> list[Route]:
+    """The admin login page: every attempt is validated by the admin's authentication form."""
+    if not index.reach.is_reached(f"{_ADMIN}.sites") or _sets_login_form(index):
+        return []
+    owner = index.mro_owner(ADMIN_LOGIN_FORM, "clean")
+    if owner is None:
+        return []
+    return [
+        Route(
+            caller=module,
+            line=line,
+            callee=f"{owner}.clean",
+            rule="django_admin_login",
+            note=(
+                f"the admin site mounted here serves a login page that validates every attempt "
+                f"with {ADMIN_LOGIN_FORM} (clean() from {owner})"
+            ),
+        )
+        for module, line in _admin_mounts(index)
+    ]
 
 
 def admin_upload_routes(index: CodeIndex) -> list[Route]:

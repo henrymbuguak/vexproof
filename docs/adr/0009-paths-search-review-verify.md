@@ -20,7 +20,11 @@ while a model asked to find a 20-step path alone is slow and can invent steps.
 - **Framework routes from declarations.** Some calls happen because of what project code
   declares, not what it calls: a model with an `ImageField` registered with a mounted admin
   site has its uploads validated by `forms.ImageField.to_python`, which opens them with Pillow
-  (`django_admin_upload`). Found in project code, explained in the report, certain.
+  (`django_admin_upload`). Mounting the admin also serves a login page that validates every
+  attempt with `AdminAuthenticationForm`, so its `clean()` is reached unless the project sets
+  its own `login_form` (`django_admin_login`; added after the run-time evaluation showed
+  `AuthenticationForm.clean` running while the model-reviewed search had given up). Found in
+  project code, explained in the report, certain.
 - **Search** (Dijkstra, backwards from the target): certain-only first; otherwise possible hops
   cost more the more functions share the name, and builtin method names (`split`, `format`)
   more still. Dispatch the code cannot show by name is a named rule: Pillow's `register_open`

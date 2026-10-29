@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tests.codebase import LIBRARY, PROJECT, build
 from vexproof.evidence.paths import Step, VerifiedPath, registry_edges, verify_path
-from vexproof.static.django_routes import admin_upload_routes
+from vexproof.static.django_routes import admin_login_routes, admin_upload_routes
 
 DJANGO = {
     "django/__init__.py": "",
@@ -28,6 +28,7 @@ class ImageField:
     "django/contrib/admin/options.py": "class ModelAdmin:\n    pass\n",
     "django/contrib/admin/sites.py": """\
 import django.forms.fields
+from django.contrib.admin.forms import AdminAuthenticationForm
 
 
 class AdminSite:
@@ -40,6 +41,23 @@ class AdminSite:
 
 
 site = AdminSite()
+""",
+    "django/contrib/admin/forms.py": """\
+from django.contrib.auth.forms import AuthenticationForm
+
+
+class AdminAuthenticationForm(AuthenticationForm):
+    def confirm_login_allowed(self, user):
+        return user
+""",
+    "django/contrib/auth/__init__.py": "",
+    "django/contrib/auth/forms.py": """\
+class AuthenticationForm:
+    def clean(self):
+        return self.confirm_login_allowed(None)
+
+    def confirm_login_allowed(self, user):
+        return user
 """,
 }
 SHOP = {
@@ -92,3 +110,33 @@ def test_no_route_without_all_three(tmp_path: Path) -> None:
         tmp_path / "b", library={**LIBRARY, **DJANGO}, project={**PROJECT, **unregistered}
     )
     assert admin_upload_routes(index) == []
+
+
+def test_admin_login_route(tmp_path: Path) -> None:
+    _, index, _ = build(tmp_path, library={**LIBRARY, **DJANGO}, project={**PROJECT, **SHOP})
+    routes = admin_login_routes(index)
+    assert [(r.caller, r.line, r.callee, r.rule) for r in routes] == [
+        ("shop.urls", 3, "django.contrib.auth.forms.AuthenticationForm.clean", "django_admin_login")
+    ]
+    assert "AdminAuthenticationForm (clean() from django.contrib.auth.forms" in routes[0].note
+    registry_edges(index)
+    path = verify_path(
+        [Step("shop.urls", 3), Step("django.contrib.auth.forms.AuthenticationForm.clean", 2)],
+        "django.contrib.auth.forms.AuthenticationForm.clean",
+        index,
+    )
+    assert isinstance(path, VerifiedPath), path
+    assert path.hops[1].via == "django_admin_login"
+
+
+def test_no_login_route_with_a_custom_login_form_or_no_mount(tmp_path: Path) -> None:
+    custom = {**SHOP, "shop/admin.py": SHOP["shop/admin.py"] + "admin.site.login_form = None\n"}
+    _, index, _ = build(
+        tmp_path / "a", library={**LIBRARY, **DJANGO}, project={**PROJECT, **custom}
+    )
+    assert admin_login_routes(index) == []
+    unmounted = {**SHOP, "shop/urls.py": "urlpatterns = []\n"}
+    _, index, _ = build(
+        tmp_path / "b", library={**LIBRARY, **DJANGO}, project={**PROJECT, **unmounted}
+    )
+    assert admin_login_routes(index) == []
