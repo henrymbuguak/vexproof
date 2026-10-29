@@ -27,7 +27,10 @@ def apply_trace(finding: Finding, symbol: str, outcome: TraceOutcome, label: str
             f"{path.possible_hops} uncertain hop(s) judged plausible by the model: {outcome.note}"
         )
     else:
-        summary = f"call path from your code to {symbol}: {len(path.hops) - 1} hops, all certain"
+        summary = (
+            f"call path from your code to {symbol}: {len(path.hops) - 1} hops, all certain"
+            + outcome.note.removeprefix("every hop of the path is certain")
+        )
     updated = evidence.model_copy(
         update={
             "call_chain": path.hops,

@@ -52,7 +52,8 @@ REGISTRATIONS = frozenset(
     {"register_open", "register_save", "register_save_all", "register_decoder", "register_encoder"}
 )
 # Methods of builtin types: `x.split()` on an unknown `x` is far more likely a str than a library
-# function of the same name, so the path search makes such hops expensive (still allowed).
+# method of the same name, so the path search never takes such a hop on its own. The verifier
+# still accepts one when a reviewer routes a path through it on purpose.
 BUILTIN_METHODS = frozenset(
     name
     for kind in (str, bytes, list, dict, set, tuple, int, float)
@@ -465,9 +466,12 @@ class CodeIndex:
         self._by_name: dict[str, list[tuple[str, Site]]] = {}
         self._definitions: dict[str, int] = {}
         self._children: dict[str, set[str]] = {}
+        self._parents: dict[str, list[str]] = {}
         self._classes: set[str] = set()
         self._built = False
         self._lock = threading.RLock()
+        # framework routes found in project code: (caller, line, callee) -> (rule, explanation)
+        self.rule_edges: dict[tuple[str, int, str], tuple[str, str]] = {}
 
     # -- lookups ------------------------------------------------------------------------------
 
@@ -519,8 +523,9 @@ class CodeIndex:
             for module in sorted(self.reach.reached):
                 code = self.code(module)
                 for cls, bases in (code.classes if code else {}).items():
-                    for base in bases:
-                        self._children.setdefault(self.resolve(base), set()).add(cls)
+                    self._parents[cls] = [self.resolve(b) for b in bases]
+                    for base in self._parents[cls]:
+                        self._children.setdefault(base, set()).add(cls)
             self._built = True
 
     def resolve(self, dotted: str, depth: int = 6) -> str:
@@ -572,6 +577,42 @@ class CodeIndex:
                 result.add(child)
                 stack.append(child)
         return result
+
+    def defines(self, cls: str, name: str) -> bool:
+        return self.scope(f"{cls}.{name}") is not None
+
+    def mro_owner(self, cls: str, name: str, *, skip_self: bool = False) -> str | None:
+        """The class whose `name` an instance of `cls` uses: `cls` itself, then its bases in
+        order, depth first (Python's MRO for single inheritance and simple mixins).
+
+        None when no known class in the hierarchy defines it (a base outside the loaded code).
+        """
+        self._build()
+        seen: set[str] = set()
+        stack = list(reversed(self._parents.get(cls, []))) if skip_self else [cls]
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            if self.defines(current, name):
+                return current
+            stack.extend(reversed(self._parents.get(current, [])))
+        return None
+
+    def dispatches_to(self, cls: str, target: Scope, *, exact: bool = False) -> bool:
+        """Can calling `target.name` on an instance of `cls` run `target`?
+
+        With `exact`, the instance's class is known to be `cls`; otherwise it may also be a
+        subclass of `cls` that overrides the method. An unknown hierarchy counts as related.
+        """
+        assert target.cls is not None  # noqa: S101 - methods only
+        owner = self.mro_owner(cls, target.name)
+        if owner is None:
+            return self.related(cls, target.cls)
+        if owner == target.cls:
+            return True
+        return not exact and target.cls in self.subclasses(cls)
 
     def related(self, a: str, b: str) -> bool:
         """Is class `a` the same as `b`, a base of it, or a subclass of it?"""
@@ -643,19 +684,20 @@ class CodeIndex:
         own = caller.cls if caller else None
         if recv in {BARE, LITERAL}:
             return None  # f() is never a method; "...".format() is a builtin type's method
-        if recv == "self":
-            return "certain" if own and self.related(own, cls) else None
-        if recv == "super":
-            return "certain" if own and own in self.subclasses(cls) else None
+        if recv == "self":  # the method K resolves to, or an override in a subclass of K
+            return "certain" if own and self.dispatches_to(own, target) else None
+        if recv == "super":  # the next definition above K
+            above = self.mro_owner(own, target.name, skip_self=True) if own else None
+            return "certain" if above == cls else None
         if recv.startswith("@"):
             known = self.resolve(recv[1:])
             if self.is_class(known):
-                return "certain" if self.related(known, cls) else None
+                return "certain" if self.dispatches_to(known, target) else None
             return "possible"
         if recv.startswith("%") and site.ref:
             owner = self.resolve(site.ref.rsplit(".", 1)[0])
-            if self.is_class(owner):  # Class.method(...)
-                return "certain" if self.related(owner, cls) else None
+            if self.is_class(owner):  # Class.method(self): exactly what Class resolves to
+                return "certain" if self.dispatches_to(owner, target, exact=True) else None
         if target.is_dunder:
             return None  # operators are invisible; only explicit calls count
         return "possible"
@@ -724,6 +766,7 @@ class CodeIndex:
         certain_only: bool = False,
         start_at: set[str] | None = None,
         avoid: set[str] | None = None,
+        trusted: set[tuple[str, int, str]] | None = None,
         max_nodes: int = 20000,
     ) -> list[tuple[Scope, int, str]] | None:
         """Cheapest chain of mentions to `target`, searched backwards from it.
@@ -732,7 +775,8 @@ class CodeIndex:
         [(scope, line where it mentions the next step, how), ..., (target, def line, "")] or
         None. With `certain_only`, only certain hops are used. Otherwise a possible hop costs more
         the more functions share the callee's name, so distinctive names win over generic ones.
-        `extra_callers` adds registry dispatch edges keyed by callee; `avoid` excludes scopes.
+        `extra_callers` adds registry dispatch edges keyed by callee; `avoid` excludes scopes;
+        `trusted` hops (caller, line, callee), already judged plausible, cost like certain ones.
         """
         project = self.reach.project_modules
         best: dict[str, float] = {target.qualname: 0.0}
@@ -761,15 +805,16 @@ class CodeIndex:
                 (s, site.line, site.kind, how == "certain") for s, site, how in self.callers(callee)
             ]
             edges += [(s, ln, how, True) for s, ln, how in (extra_callers or {}).get(qualname, [])]
-            for caller, line, how, certain in edges:
+            for caller, line, how, sure in edges:
                 if not self.reach.is_reached(caller.module) or caller.qualname in (avoid or set()):
                     continue
+                certain = sure or (caller.qualname, line, qualname) in (trusted or set())
                 if certain_only and not certain:
                     continue
                 # reading an attribute (rather than calling it) is weaker evidence than a call
-                total = cost + (1.0 if certain else 2.0 + step) + (2.0 if how == "attr" else 0.0)
                 if not certain and callee.name in BUILTIN_METHODS:
-                    total += 4.0
+                    continue  # x.decode(), x.seek() on an unknown x: almost always the builtin
+                total = cost + (1.0 if certain else 2.0 + step) + (2.0 if how == "attr" else 0.0)
                 if total < best.get(caller.qualname, math.inf):
                     best[caller.qualname] = total
                     nxt[caller.qualname] = (qualname, line, how)

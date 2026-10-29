@@ -186,3 +186,60 @@ def test_explicit_super_string_and_dunder_edges(tmp_path: Path) -> None:
     assert index.edge(getrgb, route, module) == "certain"  # a dotted string naming it
     assert index.edge(length, _site(index, size.qualname, "__len__"), size) is None
     assert index.edge(module, route, module) is None  # modules are never callees
+
+
+MRO = """\
+class Base:
+    def load(self):
+        return 1
+
+    def run(self):
+        return self.load()
+
+
+class Child(Base):
+    def load(self):
+        return super().load()
+
+    def go(self):
+        return self.load()
+
+    def base_only(self):
+        return Base.load(self)
+
+
+class Grandchild(Child):
+    def load(self):
+        return 3
+"""
+
+
+def test_calls_follow_method_resolution_order(tmp_path: Path) -> None:
+    from tests.codebase import PROJECT
+
+    _, index, _ = build(tmp_path, project={**PROJECT, "shop/mro.py": MRO})
+    base_load, child_load, grand_load, run, go, base_only = _scopes(
+        index,
+        "shop.mro.Base.load",
+        "shop.mro.Child.load",
+        "shop.mro.Grandchild.load",
+        "shop.mro.Base.run",
+        "shop.mro.Child.go",
+        "shop.mro.Child.base_only",
+    )
+    in_run, in_go, in_only, in_child = (
+        _site(index, s.qualname, "load") for s in (run, go, base_only, child_load)
+    )
+    # self.load() in Base: Base's own, or any subclass override
+    assert all(index.edge(t, in_run, run) for t in (base_load, child_load, grand_load))
+    # self.load() in Child: Child overrides it, so never Base.load
+    assert index.edge(base_load, in_go, go) is None
+    assert index.edge(grand_load, in_go, go) == "certain"
+    # super().load() in Child: the next definition above, Base.load
+    assert index.edge(base_load, in_child, child_load) == "certain"
+    assert index.edge(grand_load, in_child, child_load) is None
+    # Base.load(self): exactly Base's, never an override
+    assert index.edge(base_load, in_only, base_only) == "certain"
+    assert index.edge(child_load, in_only, base_only) is None
+    assert index.mro_owner("shop.mro.Grandchild", "run") == "shop.mro.Base"
+    assert index.mro_owner("shop.mro.Base", "missing") is None

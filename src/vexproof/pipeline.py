@@ -261,8 +261,9 @@ def prove(
                 break
         return finding
 
-    with ThreadPoolExecutor(max_workers=model.workers) as pool:
-        return tuple(pool.map(one, cleared))
+    # one at a time, in report order: a hop approved in one review is reused by later paths,
+    # so the order must be fixed for runs (and their recordings) to be reproducible
+    return tuple(one(f) for f in cleared)
 
 
 def verdict_counts(findings: Sequence[Finding]) -> dict[str, int]:

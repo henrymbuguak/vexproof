@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from vexproof.domain import Hop
 from vexproof.static.codeindex import CodeIndex, Scope, Site
+from vexproof.static.django_routes import admin_upload_routes
 
 MAX_HOPS = 30
 MAX_SEARCHES = 6
@@ -47,6 +48,16 @@ class VerifiedPath:
 
     def render(self) -> str:
         return " -> ".join(h.symbol for h in self.hops)
+
+
+def route_notes(path: VerifiedPath, index: CodeIndex) -> list[str]:
+    """Explanations of the framework routes a path takes."""
+    hops = path.hops
+    return [
+        index.rule_edges[key][1]
+        for i in range(1, len(hops))
+        if (key := (hops[i - 1].symbol, hops[i - 1].line, hops[i].symbol)) in index.rule_edges
+    ]
 
 
 @dataclass(frozen=True)
@@ -131,6 +142,12 @@ def registry_edges(index: CodeIndex) -> dict[str, list[tuple[Scope, int, str]]]:
             callees += [s for s in code.scopes.values() if s.kind == "function"]
         else:
             callees += [s for s in code.scopes.values() if s.name in HTTP_METHODS and s.cls]
+    for route in admin_upload_routes(index):
+        caller, callee = index.scope(route.caller), index.scope(route.callee)
+        if caller is None or callee is None:
+            continue
+        index.rule_edges[(caller.qualname, route.line, callee.qualname)] = (route.rule, route.note)
+        edges.setdefault(callee.qualname, []).append((caller, route.line, route.rule))
     for caller_name, marker in _DISPATCHERS.items():
         caller = index.scope(caller_name)
         if caller is None or not index.reach.is_reached(caller.module):
@@ -159,6 +176,9 @@ def _edge(
     """How `caller` reaches `callee` at `line`, or the reason it does not."""
     if not caller.start <= line <= caller.end:
         return f"line {line} is outside {caller.qualname}"
+    route = index.rule_edges.get((caller.qualname, line, callee.qualname))
+    if route is not None:
+        return _Hop(route[0], True, None)
     best: _Hop | None = None
     for site in caller.sites:
         if site.line != line:
@@ -170,32 +190,36 @@ def _edge(
             site.recv == "self"
             and self_type
             and callee.cls
-            and not (callee.cls == self_type or self_type in index.subclasses(callee.cls))
+            and not index.dispatches_to(self_type, callee, exact=True)
         ):
-            continue  # self is a `self_type`: only methods in its class hierarchy above it
+            continue  # self is exactly a `self_type`: only the method its class resolves to
         hop = _Hop(site.kind, how == "certain", _next_self_type(site, callee, self_type, index))
         if best is None or (hop.certain and not best.certain):
             best = hop
     if best is not None:
         return best
-    for name, rule in RULES.items():
-        if not rule(caller, callee, index):
-            continue
-        if name not in _SAME_OBJECT:
-            return _Hop(name, True, None)
-        if (
-            self_type
-            and callee.cls
-            and not (callee.cls == self_type or self_type in index.subclasses(callee.cls))
-        ):
-            continue  # the handler must belong to the class of `self`
-        return _Hop(name, True, self_type)
+    ruled = _rule_hop(caller, callee, index, self_type)
+    if ruled is not None:
+        return ruled
     if self_type:
         return (
             f"line {line} of {caller.qualname} does not reach {callee.qualname} when self is "
             f"a {self_type}"
         )
     return f"line {line} of {caller.qualname} does not call or refer to {callee.qualname}"
+
+
+def _rule_hop(caller: Scope, callee: Scope, index: CodeIndex, self_type: str | None) -> _Hop | None:
+    """A dispatch rule that connects `caller` to `callee`, if any."""
+    for name, rule in RULES.items():
+        if not rule(caller, callee, index):
+            continue
+        if name not in _SAME_OBJECT:
+            return _Hop(name, True, None)
+        if self_type and callee.cls and not index.dispatches_to(self_type, callee, exact=True):
+            continue  # the handler must be the one the class of `self` resolves to
+        return _Hop(name, True, self_type)
+    return None
 
 
 def _next_self_type(
@@ -341,6 +365,7 @@ def find_path(
     avoid: set[str] | None = None,
     through: Sequence[str] = (),
     certain_only: bool = False,
+    trusted: set[tuple[str, int, str]] | None = None,
 ) -> SearchResult:
     """Cheapest verified path to `target`, optionally via the `through` steps in order.
 
@@ -362,6 +387,7 @@ def find_path(
             extra=extra,
             avoid=avoided,
             certain_only=certain_only,
+            trusted=trusted,
         )
         if found is None:
             break
@@ -386,6 +412,7 @@ def _search(
     extra: dict[str, list[tuple[Scope, int, str]]],
     avoid: set[str],
     certain_only: bool,
+    trusted: set[tuple[str, int, str]] | None = None,
 ) -> list[tuple[Scope, int, str]] | None:
     """Project -> waypoint 1 -> ... -> target, each leg the cheapest available."""
     stops = [*waypoints, target]
@@ -396,7 +423,12 @@ def _search(
             continue
         start_at = {stops[i - 1].qualname} if i else None
         leg = index.shortest_path(
-            stop, extra, certain_only=certain_only, start_at=start_at, avoid=avoid
+            stop,
+            extra,
+            certain_only=certain_only,
+            start_at=start_at,
+            avoid=avoid,
+            trusted=trusted,
         )
         if leg is None:
             return None

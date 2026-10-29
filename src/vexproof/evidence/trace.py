@@ -21,15 +21,22 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from vexproof.evidence.paths import SearchResult, Step, VerifiedPath, find_path, verify_path
+from vexproof.evidence.paths import (
+    SearchResult,
+    Step,
+    VerifiedPath,
+    find_path,
+    route_notes,
+    verify_path,
+)
 from vexproof.llm.structured import StructuredCaller
 from vexproof.llm.types import BudgetExceededError, ModelError
 from vexproof.prompts import load_prompt
 from vexproof.static.codeindex import CodeIndex, Scope
 
-PROMPT_VERSION = "trace_path.v2"
+PROMPT_VERSION = "trace_path.v3"
 PURPOSE = "trace_path"
-MAX_STEPS = 8
+MAX_STEPS = 12
 MAX_OUTPUT_TOKENS = 4096
 _RECENT = 3  # observations shown in full; older ones are shortened
 _LIST = 25
@@ -153,6 +160,8 @@ class Tracer:
         self._extra = extra
         self._caller = caller
         self._done: dict[str, TraceOutcome] = {}
+        # uncertain hops (caller, line, callee) the model judged plausible, and why
+        self._approved: dict[tuple[str, int, str], str] = {}
         self._locks: dict[str, threading.Lock] = {}
         self._guard = threading.Lock()
 
@@ -171,13 +180,24 @@ class Tracer:
         # a path of certain hops is the best evidence: look for one before allowing others
         first = find_path(target, self._index, self._extra, certain_only=True)
         if first.path is None:
-            first = find_path(target, self._index, self._extra)
+            first = find_path(target, self._index, self._extra, trusted=set(self._approved))
         if first.path is None:
             return TraceOutcome(
                 None, False, "no call path from your code was found (searched by name)"
             )
         if first.path.possible_hops == 0:
-            return TraceOutcome(first.path, False, "every hop of the path is certain")
+            routes = route_notes(first.path, self._index)
+            note = "every hop of the path is certain" + "".join(f"; {r}" for r in routes)
+            return TraceOutcome(first.path, False, note)
+        open_hops = _uncertain(first.path) - set(self._approved)
+        if not open_hops:
+            reasons = dict.fromkeys(self._approved[h] for h in _uncertain(first.path))
+            return TraceOutcome(
+                first.path,
+                True,
+                "its uncertain hops were judged plausible in an earlier review: "
+                + " | ".join(reasons),
+            )
         if self._caller is None:
             return TraceOutcome(
                 None,
@@ -194,6 +214,7 @@ class Tracer:
         assert self._caller is not None  # noqa: S101 - checked by _trace
         current: VerifiedPath | None = first.path
         history: list[tuple[str, str]] = []
+        avoided: set[str] = set()  # accumulates: the model need not repeat earlier entries
         system = load_prompt(PROMPT_VERSION)
         for _ in range(MAX_STEPS):
             user = self._render(target, current, history)
@@ -218,6 +239,8 @@ class Tracer:
                     [Step(h.symbol, h.line) for h in current.hops], target.qualname, self._index
                 )
                 if isinstance(again, VerifiedPath):
+                    for hop in _uncertain(again):
+                        self._approved.setdefault(hop, act.reason.strip()[:300])
                     return TraceOutcome(again, True, act.reason.strip())
                 history.append((_describe(act), "the path no longer verifies"))
             elif act.action == "give_up":
@@ -229,8 +252,9 @@ class Tracer:
                     target,
                     self._index,
                     self._extra,
-                    avoid=_avoid(act.avoid, target, current),
+                    avoid=(avoided := avoided | _avoid(act.avoid, target, current)),
                     through=[t for t in act.through if t != target.qualname],
+                    trusted=set(self._approved),
                 )
                 current = result.path
                 observation = (
@@ -283,8 +307,13 @@ class Tracer:
             parts.append("There is no current candidate path.")
         else:
             parts += ["Current candidate path (verified hop by hop):", "<code>"]
+            approved = self._approved
             for i, hop in enumerate(current.hops):
                 mark = "start" if i == 0 else ("certain" if hop.certain else "POSSIBLE")
+                if mark == "POSSIBLE" and (
+                    (current.hops[i - 1].symbol, current.hops[i - 1].line, hop.symbol) in approved
+                ):
+                    mark = "reviewed"
                 code = self._index.line(self._index.module_of(hop.symbol) or "", hop.line)
                 parts.append(f"{i:>2} {mark:8} {hop.symbol}  [{hop.file}:{hop.line}]  {code[:100]}")
             parts.append("</code>")
@@ -300,7 +329,7 @@ class Tracer:
 
 def _describe(act: TraceAction) -> str:
     if act.action == "search":
-        return f"search(avoid={act.avoid}, through={act.through})"
+        return f"search(avoid+={act.avoid}, through={act.through})"
     if act.action in {"callers", "source"}:
         return f"{act.action}({act.symbol})"
     return act.action
@@ -312,3 +341,13 @@ def _avoid(names: list[str], target: Scope, current: VerifiedPath | None) -> set
     if target.qualname in names and current is not None and current.hops[:-1]:
         avoided.add(current.hops[-2].symbol)
     return avoided
+
+
+def _uncertain(path: VerifiedPath) -> set[tuple[str, int, str]]:
+    """The path's uncertain hops as (caller, line where it calls, callee)."""
+    hops = path.hops
+    return {
+        (hops[i - 1].symbol, hops[i - 1].line, hops[i].symbol)
+        for i in range(1, len(hops))
+        if not hops[i].certain
+    }

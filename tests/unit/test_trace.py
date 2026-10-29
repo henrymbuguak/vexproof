@@ -217,3 +217,42 @@ def test_avoiding_the_target_means_avoiding_its_caller(
     Tracer(loose_index, registry_edges(loose_index), stack.caller).trace(FRAME)
     # the only route went through shop.views.process, now avoided: no path is left
     assert "no verified path with those constraints" in live.requests[1].user
+
+
+def test_an_approved_hop_is_reused_by_later_paths(tmp_path: Path) -> None:
+    from tests.codebase import LIBRARY
+
+    plugin = (
+        LIBRARY[NO_REGISTRY]
+        .replace('Image.register_open("ICO", IcoImageFile)\n', "")
+        .replace(
+            "        return idx\n",
+            "        return self.unpack(idx)\n\n    def unpack(self, idx):\n        return idx\n",
+            1,
+        )
+    )
+    _, index, _ = build(tmp_path / "code", library={**LIBRARY, NO_REGISTRY: plugin})
+    stack, live = scripted_stack([_act("accept", reason="process gets IcoFile objects")], tmp_path)
+    tracer = Tracer(index, registry_edges(index), stack.caller)
+    first = tracer.trace(FRAME)
+    assert first.path is not None
+    second = tracer.trace("PIL.IcoPlugin.IcoFile.unpack")  # same uncertain hop, then certain
+    assert second.path is not None
+    assert second.reviewed
+    assert second.note.startswith("its uncertain hops were judged plausible in an earlier review")
+    assert second.note.endswith("process gets IcoFile objects")
+    assert len(live.requests) == 1  # no second review
+
+
+def test_avoids_accumulate_during_a_review(loose_index: CodeIndex, tmp_path: Path) -> None:
+    stack, live = scripted_stack(
+        [
+            _act("search", avoid=["shop.views.process"]),
+            _act("search", through=[FRAME]),  # does not repeat the avoid
+            _act("give_up"),
+        ],
+        tmp_path,
+    )
+    Tracer(loose_index, registry_edges(loose_index), stack.caller).trace(FRAME)
+    assert "search(avoid+=[], through=" in live.requests[2].user
+    assert live.requests[2].user.count("no verified path with those constraints") == 2
