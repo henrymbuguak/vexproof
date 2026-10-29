@@ -139,8 +139,14 @@ class Evaluation:
 
     @property
     def cost_usd(self) -> float | None:
-        cost = (self.record.model or {}).get("cost_usd")
+        """What a scan costs without recordings; older files only have this run's cost."""
+        model = self.record.model or {}
+        cost = model.get("fresh_cost_usd", model.get("cost_usd"))
         return float(cost) if isinstance(cost, int | float) else None
+
+    @property
+    def cost_is_fresh(self) -> bool:
+        return "fresh_cost_usd" in (self.record.model or {})
 
     @property
     def scan_seconds(self) -> float:

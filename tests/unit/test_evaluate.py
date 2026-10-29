@@ -164,7 +164,14 @@ def test_markdown_and_summary() -> None:
     assert rows["Reachable alerts whose vulnerable function ran"] == (
         "1 of 2 (1 not exercised by the workload)"
     )
-    assert rows["Model cost (as if nothing were replayed)"] == "$0.4700 total, $0.06714 per alert"
+    assert rows["Model cost of this scan (replayed answers not counted)"] == (
+        "$0.4700 total, $0.06714 per alert"
+    )
+    fresh = evaluate(_record(model={"cost_usd": 0.01, "fresh_cost_usd": 0.7}), _observation())
+    assert fresh.cost_is_fresh
+    assert dict(summary_rows(fresh))["Model cost of a scan without recordings"] == (
+        "$0.7000 total, $0.10000 per alert"
+    )
     text = render_markdown(result)
     assert text.startswith("# Evaluation: https://github.com/acme/shop @ `1aa90f67f455`")
     assert "**Verdict: UNSOUND**" in text

@@ -305,6 +305,7 @@ def test_local_server_works_without_a_key(
     payload = json.loads(out.read_text())
     assert payload["model"]["calls"] == 1  # recorded so evaluation can report cost per alert
     assert payload["model"]["by_purpose"] == {"symbol_pick": 1}
+    assert payload["model"]["recorded_input_tokens"] == 0  # nothing was replayed
     assert payload["closure"] == {"reached": [], "unreached": [], "blockers": []}
     assert set(payload["timings_s"]) >= {"ingest", "intel", "select", "prove"}
 

@@ -54,7 +54,9 @@ def summary_rows(ev: Evaluation) -> list[tuple[str, str]]:
     if ev.cost_usd is not None:
         rows.append(
             (
-                "Model cost (as if nothing were replayed)",
+                "Model cost of a scan without recordings"
+                if ev.cost_is_fresh
+                else "Model cost of this scan (replayed answers not counted)",
                 f"${ev.cost_usd:.4f} total, ${ev.cost_usd / max(ev.alerts, 1):.5f} per alert",
             )
         )

@@ -200,11 +200,17 @@ def _render_usage(stack: ModelStack, settings: Settings) -> None:
     if not total.calls:
         return
     cost = report.cost_usd(settings.price_input_per_m, settings.price_output_per_m)
+    fresh = report.cost_usd(settings.price_input_per_m, settings.price_output_per_m, fresh=True)
     console.print(
         f"Model {escape(stack.label)}: {total.calls} call(s), "
         f"{total.replayed} replayed from recordings, "
         f"{total.input_tokens:,} input + {total.output_tokens:,} output tokens"
         + (f", about ${cost:.4f}" if cost is not None else "")
+        + (
+            f" (without recordings: about ${fresh:.4f})"
+            if fresh is not None and total.replayed
+            else ""
+        )
     )
 
 
@@ -226,7 +232,7 @@ def _model_config(
 
 
 def _usage(stack: ModelStack | None, settings: Settings) -> dict[str, object] | None:
-    """Model use for the whole scan, priced as if nothing had been replayed from recordings."""
+    """Model use for the whole scan: what this run cost, and what a run without recordings costs."""
     if stack is None or not stack.budget.report.total.calls:
         return None
     report = stack.budget.report
@@ -237,7 +243,12 @@ def _usage(stack: ModelStack | None, settings: Settings) -> dict[str, object] | 
         "replayed": total.replayed,
         "input_tokens": total.input_tokens,
         "output_tokens": total.output_tokens,
+        "recorded_input_tokens": total.recorded_input_tokens,
+        "recorded_output_tokens": total.recorded_output_tokens,
         "cost_usd": report.cost_usd(settings.price_input_per_m, settings.price_output_per_m),
+        "fresh_cost_usd": report.cost_usd(
+            settings.price_input_per_m, settings.price_output_per_m, fresh=True
+        ),
         "by_purpose": {k: v.calls for k, v in sorted(report.by_purpose.items())},
     }
 

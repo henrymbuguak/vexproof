@@ -14,10 +14,14 @@ from vexproof.llm.types import BudgetExceededError, ModelRequest, ModelResponse,
 
 @dataclass
 class Usage:
+    """Tokens spent by this run; `recorded_*` are what replayed answers cost when first made."""
+
     calls: int = 0
     replayed: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    recorded_input_tokens: int = 0
+    recorded_output_tokens: int = 0
 
 
 @dataclass
@@ -32,13 +36,20 @@ class UsageReport:
             total.replayed += usage.replayed
             total.input_tokens += usage.input_tokens
             total.output_tokens += usage.output_tokens
+            total.recorded_input_tokens += usage.recorded_input_tokens
+            total.recorded_output_tokens += usage.recorded_output_tokens
         return total
 
-    def cost_usd(self, input_per_m: float | None, output_per_m: float | None) -> float | None:
+    def cost_usd(
+        self, input_per_m: float | None, output_per_m: float | None, *, fresh: bool = False
+    ) -> float | None:
+        """What this run cost; with `fresh`, what it would cost with no recordings."""
         if input_per_m is None or output_per_m is None:
             return None
-        total = self.total
-        return (total.input_tokens * input_per_m + total.output_tokens * output_per_m) / 1e6
+        t = self.total
+        tokens_in = t.input_tokens + (t.recorded_input_tokens if fresh else 0)
+        tokens_out = t.output_tokens + (t.recorded_output_tokens if fresh else 0)
+        return (tokens_in * input_per_m + tokens_out * output_per_m) / 1e6
 
 
 class BudgetTransport:
@@ -66,8 +77,10 @@ class BudgetTransport:
         with self._lock:
             usage = self.report.by_purpose.setdefault(request.purpose, Usage())
             usage.calls += 1
-            if response.replayed:
-                usage.replayed += 1  # recorded answers cost nothing
+            if response.replayed:  # recorded answers cost nothing now; keep what they cost then
+                usage.replayed += 1
+                usage.recorded_input_tokens += response.input_tokens
+                usage.recorded_output_tokens += response.output_tokens
             else:
                 usage.input_tokens += response.input_tokens
                 usage.output_tokens += response.output_tokens

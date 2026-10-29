@@ -131,6 +131,9 @@ def test_replayed_answers_cost_nothing(tmp_path: Path) -> None:
     budget.complete(_request())
     total = budget.report.total
     assert (total.calls, total.replayed, total.input_tokens) == (2, 1, 100)
+    assert total.recorded_input_tokens == 100  # what the replayed answer cost when recorded
+    assert budget.report.cost_usd(1e6, 0) == 100
+    assert budget.report.cost_usd(1e6, 0, fresh=True) == 200
 
 
 def test_cost_needs_both_prices() -> None:
