@@ -29,7 +29,7 @@ from vexproof.static.frameworks import COVERED_DYNAMIC_IMPORTS, RULES
 from vexproof.static.imports import ModuleImports, scan_source
 from vexproof.static.project import import_path, is_test_path, python_files
 
-_CACHE = "vexproof-modules.v1.json"
+_CACHE = "vexproof-modules.v2.json"  # v2: tree v2 lists more modules
 PROJECT = "<project>"
 
 

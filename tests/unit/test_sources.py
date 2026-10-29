@@ -63,6 +63,8 @@ def test_choose_prefers_pure_then_smallest_wheel_then_sdist() -> None:
         ("PIL/_imaging.cpython-312-x86_64-linux-gnu.so", "PIL._imaging"),
         ("top.py", "top"),
         ("not-valid/mod.py", None),
+        ("app/migrations/0001_initial.py", "app.migrations.0001_initial"),
+        ("pkg/my-module.py", None),
         ("__init__.py", None),
     ],
 )

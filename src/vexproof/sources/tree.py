@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import configparser
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from vexproof.sources.archive import Extracted
 
-MANIFEST = "vexproof-tree.json"
+# v2: modules whose file name is not an identifier (Django's `0001_initial.py`) are included.
+# A new name makes trees cached by older versions rebuild once.
+MANIFEST = "vexproof-tree-v2.json"
 # Entry-point groups that only create executables; any other group can load code as a plugin.
 SCRIPT_GROUPS = frozenset({"console_scripts", "gui_scripts"})
 _SKIP_TOP = frozenset({"tests", "test", "testing", "docs", "doc", "examples", "benchmarks"})
@@ -67,12 +70,19 @@ class SourceTree:
         )
 
 
+_LOADABLE = re.compile(r"\w+")
+
+
 def module_name(rel: str) -> str | None:
-    """`pkg/sub/mod.py` -> `pkg.sub.mod`; `pkg/__init__.py` -> `pkg`; extension modules too."""
+    """`pkg/sub/mod.py` -> `pkg.sub.mod`; `pkg/__init__.py` -> `pkg`; extension modules too.
+
+    The last part need not be an identifier: `import_module("app.migrations.0001_initial")`
+    loads `0001_initial.py`, and Django does exactly that for every migration.
+    """
     path = PurePosixPath(rel)
     parts = list(path.parts)
     stem = path.name.split(".", 1)[0]
-    if not stem.isidentifier() or not all(p.isidentifier() for p in parts[:-1]):
+    if not _LOADABLE.fullmatch(stem) or not all(p.isidentifier() for p in parts[:-1]):
         return None
     if stem == "__init__":
         return ".".join(parts[:-1]) or None
