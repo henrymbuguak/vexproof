@@ -1,0 +1,68 @@
+# Gold labels for symbol selection: which shortlisted function each advisory is about.
+#
+# Each answer was established from the advisory's own text and the fix commit, on the
+# Shopping Cart scan (Django 2.0, Pillow 4.3.0), before any model was run.
+#
+# A pick is correct when:
+#   - expected is "none": the model reports that no candidate matches (none_match), or
+#   - otherwise: the selection is non-empty, every selected name is in `expected`, and it
+#     includes every name in `must_include`.
+#
+# The three Pillow container advisories share ONE fix commit (756fff33) with the same two
+# candidates; the right answer differs for each. They test reading, not pattern matching.
+cases:
+  - advisory: GHSA-95q3-8gr9-gm8w
+    package: pillow
+    expected: [PIL.IcoImagePlugin.IcoFile.frame]
+    why: CVE-2021-27923 is about the ICO container; the shared commit also fixes ICNS.
+  - advisory: GHSA-3wvg-mj6g-m9cv
+    package: pillow
+    expected: [PIL.IcnsImagePlugin.read_png_or_jpeg2000]
+    why: CVE-2021-27922 is about the ICNS container; the shared commit also fixes ICO.
+  - advisory: GHSA-f4w8-cv6p-x6r5
+    package: pillow
+    expected: none
+    why: CVE-2021-27921 is about the BLP container; BlpImagePlugin does not exist in 4.3.0.
+  - advisory: GHSA-5x94-69rx-g8h2
+    package: pillow
+    expected: [PIL.FontFile.FontFile.compile]
+    why: The advisory names FontFile.compile(); the shared commit also changes BDF and PCF code.
+  - advisory: GHSA-45hq-cxwh-f6vc
+    package: pillow
+    expected: [PIL.BdfFontFile.bdf_char]
+    why: The advisory names BdfFontFile bdf_char(); the shared commit also changes FontFile/PCF.
+  - advisory: GHSA-9hw9-ch79-4vh6
+    package: pillow
+    expected: [PIL.ImageCms.ImageCmsTransform.apply, PIL.ImageCms.ImageCmsTransform.apply_in_place]
+    must_include: [PIL.ImageCms.ImageCmsTransform.apply]
+    why: The advisory names ImageCmsTransform.apply(im, imOut); apply_in_place shares the bug.
+  - advisory: GHSA-3f63-hfp8-52jq
+    package: pillow
+    expected: [PIL.ImageMath.eval]
+    why: CVE-2023-50447, arbitrary code execution through ImageMath.eval.
+  - advisory: GHSA-vfq6-hq5r-27r6
+    package: django
+    expected: [django.contrib.auth.forms.PasswordResetForm.get_users, django.contrib.auth.forms.PasswordResetForm.save]
+    why: CVE-2019-19844; get_users matched e-mails after Unicode case folding and save sent the token to the submitted address.
+  - advisory: GHSA-hmr4-m2h5-33qx
+    package: django
+    expected: [django.contrib.postgres.aggregates.general.StringAgg.__init__]
+    why: CVE-2020-7471, SQL injection through StringAgg(delimiter).
+  - advisory: GHSA-rf4j-j272-fj86
+    package: django
+    expected: [django.contrib.auth.forms.AuthenticationForm.clean]
+    why: CVE-2018-6188, AuthenticationForm leaked whether an account is inactive.
+  - advisory: GHSA-5hg3-6c2f-f3wr
+    package: django
+    expected: [django.middleware.common.CommonMiddleware.get_full_path_with_slash, django.urls.resolvers.URLResolver._reverse_with_prefix]
+    must_include: [django.middleware.common.CommonMiddleware.get_full_path_with_slash]
+    why: CVE-2018-14574 names CommonMiddleware; the fix also escapes leading slashes in reverse().
+  - advisory: GHSA-h7pc-vwp9-298g
+    package: django
+    expected: [django.http.request.HttpRequest.get_signed_cookie, django.http.response.HttpResponseBase.set_signed_cookie]
+    must_include: [django.http.request.HttpRequest.get_signed_cookie]
+    why: CVE-2026-6873 names HttpRequest.get_signed_cookie; set_signed_cookie derives the same salt.
+  - advisory: GHSA-frmv-pr5f-9mcr
+    package: django
+    expected: [django.db.models.query_utils.Q.__init__]
+    why: SQL injection through the _connector keyword argument of Q.

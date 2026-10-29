@@ -14,6 +14,10 @@ ALLOWED = {
     "intel": {"domain", "errors", "intel"},
     "sources": {"domain", "errors", "sources", "gitcmd", "intel"},
     "static": {"domain", "errors", "static", "sources"},
+    # the model layer knows nothing about vulnerabilities; symbols uses it but never the network
+    "llm": {"errors", "llm"},
+    "prompts": set(),
+    "symbols": {"domain", "errors", "llm", "prompts", "symbols"},
 }
 
 
@@ -39,3 +43,17 @@ def test_stage_imports_respect_direction(stage: str) -> None:
     for module in stage_dir.rglob("*.py"):
         illegal = _vexproof_imports(module) - ALLOWED[stage]
         assert not illegal, f"{module.relative_to(SRC)} imports {sorted(illegal)}"
+
+
+def test_only_the_model_layer_talks_to_the_model_api() -> None:
+    for module in SRC.rglob("*.py"):
+        if module.parent.name == "llm":
+            continue
+        source = module.read_text(encoding="utf-8")
+        assert "import openai" not in source, f"{module.relative_to(SRC)} imports openai"
+
+
+def test_prompts_are_versioned_files() -> None:
+    prompts = sorted(p.name for p in (SRC / "prompts").glob("*.md"))
+    assert prompts
+    assert all(".v" in name for name in prompts)
