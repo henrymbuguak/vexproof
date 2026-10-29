@@ -20,6 +20,8 @@ ALLOWED = {
     "symbols": {"domain", "errors", "llm", "prompts", "symbols"},
     # evidence combines static analysis with the model; static never depends on it
     "evidence": {"domain", "errors", "evidence", "llm", "prompts", "static"},
+    # reports read finished findings only: they cannot change a verdict or call the model
+    "report": {"domain", "errors", "report"},
 }
 
 
