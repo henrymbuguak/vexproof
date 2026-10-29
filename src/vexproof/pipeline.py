@@ -1,8 +1,9 @@
 """Orchestrates the stages. This is the only module where stages meet.
 
-Stages so far: ingest -> intel -> analyze (Level 0 import closure, fix-commit shortlists)
--> select (Muse Spark picks the vulnerable function; a verifier checks it).
-Later chapters add the evidence engine, prioritization and reporting.
+Stages: ingest -> intel -> analyze (Level 0 import closure, fix-commit shortlists)
+-> select (Muse Spark picks the vulnerable function; a verifier checks it)
+-> prove (module-level clears; call paths found by search, reviewed by Muse Spark, verified).
+Later chapters add prioritization and reporting.
 """
 
 from __future__ import annotations
@@ -17,6 +18,11 @@ from typing import Any
 import structlog
 
 from vexproof.domain import Evidence, Finding, Level, Package, Verdict
+from vexproof.evidence.apply import PATH_REVIEWED, apply_trace
+from vexproof.evidence.clear import MODULE_NOT_LOADED, clear_by_module
+from vexproof.evidence.paths import registry_edges
+from vexproof.evidence.trace import PROMPT_VERSION as TRACE_PROMPT
+from vexproof.evidence.trace import Tracer
 from vexproof.ingest.direct import direct_dependency_names
 from vexproof.ingest.sbom import load_sbom, packages_from_sbom
 from vexproof.ingest.syft import generate_sbom
@@ -31,7 +37,9 @@ from vexproof.llm.types import BudgetExceededError, ModelError
 from vexproof.sources.git import GitFixFetcher
 from vexproof.sources.store import SourceStore
 from vexproof.static.closure import reachability
+from vexproof.static.codeindex import CodeIndex
 from vexproof.static.levels import NOT_IN_EXECUTE_PATH, level0
+from vexproof.static.modules import module_reachability
 from vexproof.static.project import scan_project
 from vexproof.static.shortlist import FixSource, build_shortlist
 from vexproof.symbols.apply import apply_outcome
@@ -141,6 +149,7 @@ def analyze(
             candidates=shortlist.candidates,
             changed_modules=shortlist.changed_modules,
             fix_commits=shortlist.fix_commits,
+            native_changes=shortlist.native_changes,
             notes=(*decision.notes, *shortlist.notes),
         )
         return finding.model_copy(update={"evidence": evidence})
@@ -207,6 +216,75 @@ def level_counts(findings: Sequence[Finding]) -> dict[str, int]:
     return counts
 
 
+def prove(
+    repo: Path,
+    packages: Sequence[Package],
+    findings: Sequence[Finding],
+    analyzers: Analyzers,
+    model: ModelStack | None = None,
+    *,
+    trace: bool = True,
+) -> tuple[Finding, ...]:
+    """Clear alerts whose vulnerable module is never loaded; find call paths to verified picks."""
+    trees, failures = analyzers.store.get_many(packages, workers=analyzers.workers)
+    reach = module_reachability(repo, trees, failures)
+    cleared = tuple(clear_by_module(f, reach) for f in findings)
+    if not trace or model is None:
+        return cleared
+    pending = [
+        f for f in cleared if f.verdict is None and f.evidence and f.evidence.vulnerable_symbols
+    ]
+    if not pending:
+        return cleared
+    index = CodeIndex(reach)
+    tracer = Tracer(index, registry_edges(index), model.caller)
+    label = f"{model.label} / {TRACE_PROMPT}"
+    budget_note: list[str] = []
+
+    def one(finding: Finding) -> Finding:
+        evidence = finding.evidence
+        if finding.verdict is not None or evidence is None or not evidence.vulnerable_symbols:
+            return finding
+        if budget_note:
+            return _note(finding, budget_note[0])
+        for symbol in evidence.vulnerable_symbols[:3]:
+            module = index.module_of(symbol)
+            if module is None or not reach.is_reached(module):
+                continue
+            try:
+                outcome = tracer.trace(symbol)
+            except BudgetExceededError as exc:
+                budget_note.append(f"call path search skipped: {exc}")
+                return _note(finding, budget_note[0])
+            finding = apply_trace(finding, symbol, outcome, label)
+            if outcome.path is not None:
+                break
+        return finding
+
+    with ThreadPoolExecutor(max_workers=model.workers) as pool:
+        return tuple(pool.map(one, cleared))
+
+
+def verdict_counts(findings: Sequence[Finding]) -> dict[str, int]:
+    """How each alert stands: cleared (and how), proven reachable (and how), or open."""
+    counts = {
+        "cleared_package": 0,
+        "cleared_module": 0,
+        "path_certain": 0,
+        "path_reviewed": 0,
+        "open": 0,
+    }
+    for finding in findings:
+        checks = finding.evidence.checks_passed if finding.evidence else ()
+        if finding.verdict is Verdict.NOT_AFFECTED:
+            counts["cleared_module" if MODULE_NOT_LOADED in checks else "cleared_package"] += 1
+        elif finding.verdict is Verdict.AFFECTED:
+            counts["path_reviewed" if PATH_REVIEWED in checks else "path_certain"] += 1
+        else:
+            counts["open"] += 1
+    return counts
+
+
 def scan(
     repo: Path,
     *,
@@ -218,6 +296,7 @@ def scan(
     source: str | None = None,
     commit: str | None = None,
     sbom_generator: Callable[[Path], dict[str, Any]] = generate_sbom,
+    trace: bool = True,
 ) -> ScanResult:
     timings: dict[str, float] = {}
     started = time.perf_counter()
@@ -241,6 +320,12 @@ def scan(
         findings = select_symbols(findings, model)
         timings["select"] = time.perf_counter() - started
         log.info("select_done", **selection_counts(findings))
+
+    if analyzers is not None and findings:
+        started = time.perf_counter()
+        findings = prove(repo, packages, findings, analyzers, model, trace=trace)
+        timings["prove"] = time.perf_counter() - started
+        log.info("prove_done", **verdict_counts(findings))
 
     return ScanResult(
         source=source or str(repo),

@@ -86,6 +86,13 @@ def test_cli_scan_writes_json(
         "levels": {"L0": 0, "L1": 0, "L2": 0, "L3": 0},
         "cleared": 0,
         "selection": {"picked": 0, "none_match": 0, "rejected": 0, "failed": 0},
+        "verdicts": {
+            "cleared_package": 0,
+            "cleared_module": 0,
+            "path_certain": 0,
+            "path_reviewed": 0,
+            "open": 3,
+        },
     }
     assert payload["findings"][0]["signals"]["in_kev"] is True
 

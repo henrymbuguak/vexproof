@@ -34,6 +34,7 @@ from vexproof.pipeline import (
     level_counts,
     scan,
     selection_counts,
+    verdict_counts,
 )
 from vexproof.sources.git import GitFixFetcher
 from vexproof.sources.pypi import PyPIClient
@@ -119,11 +120,6 @@ def _render_funnel(findings: tuple[Finding, ...]) -> None:
     for level, count in counts.items():
         funnel.add_row(level, LEVEL_LABELS[level], str(count))
     console.print(funnel)
-    cleared = sum(1 for f in findings if f.verdict is Verdict.NOT_AFFECTED)
-    console.print(
-        f"Alert noise reduction so far: [bold]{100 * cleared / len(findings):.1f}%[/bold] "
-        f"({cleared} of {len(findings)} cleared). Function-level checks come next."
-    )
     picked = selection_counts(findings)
     if any(picked.values()):
         console.print(
@@ -131,6 +127,36 @@ def _render_funnel(findings: tuple[Finding, ...]) -> None:
             f"{picked['none_match']} where no changed function matches, "
             f"{picked['rejected']} rejected by the verifier, {picked['failed']} failed"
         )
+    _render_verdicts(findings)
+
+
+def _render_verdicts(findings: tuple[Finding, ...]) -> None:
+    counts = verdict_counts(findings)
+    table = Table(title="Where each alert stands", show_header=False)
+    table.add_column("Outcome")
+    table.add_column("How it was decided")
+    table.add_column("Alerts", justify="right")
+    rows = [
+        ("cleared", "package never imported by your code", counts["cleared_package"]),
+        ("cleared", "vulnerable module never loaded by your code", counts["cleared_module"]),
+        ("reachable", "call path from your code, every hop certain", counts["path_certain"]),
+        (
+            "reachable",
+            "call path from your code, uncertain hops reviewed by the model",
+            counts["path_reviewed"],
+        ),
+        ("open", "needs review: no verified evidence either way", counts["open"]),
+    ]
+    for outcome, how, count in rows:
+        table.add_row(outcome, how, str(count))
+    console.print(table)
+    cleared = counts["cleared_package"] + counts["cleared_module"]
+    reachable = counts["path_certain"] + counts["path_reviewed"]
+    console.print(
+        f"Alert noise reduction: [bold]{100 * cleared / len(findings):.1f}%[/bold] "
+        f"({cleared} of {len(findings)} cleared with evidence); "
+        f"[bold]{reachable}[/bold] proven reachable with a call path"
+    )
 
 
 def _render_usage(stack: ModelStack, settings: Settings) -> None:
@@ -173,6 +199,7 @@ def _payload(result: ScanResult) -> dict[str, object]:
             "levels": level_counts(result.findings),
             "cleared": sum(1 for f in result.findings if f.verdict is Verdict.NOT_AFFECTED),
             "selection": selection_counts(result.findings),
+            "verdicts": verdict_counts(result.findings),
         },
         "packages": [p.model_dump(mode="json") for p in result.packages],
         "findings": [f.model_dump(mode="json") for f in result.findings],
@@ -204,6 +231,9 @@ def scan_command(
             help="Ask the model to pick vulnerable functions (default: on when one is configured)",
         ),
     ] = None,
+    trace: Annotated[
+        bool, typer.Option(help="Search for call paths to picked functions (needs the model)")
+    ] = True,
     workspace: Annotated[Path, typer.Option(help="Where GitHub repos are cloned")] = Path(
         ".vexproof-cache/repos"
     ),
@@ -255,6 +285,7 @@ def scan_command(
                     ),
                     analyzers=analyzers,
                     model=stack,
+                    trace=trace,
                     sbom_path=sbom,
                     source=target,
                     commit=resolved_commit,
@@ -330,6 +361,16 @@ def _show(f: Finding) -> None:
         say(f"[bold]picked:[/bold] {picked}  [dim]({escape(ev.symbol_model or '')})[/dim]")
     if ev.symbol_quote:
         say(escape(f'  advisory says: "{ev.symbol_quote}"'))
+    if ev.call_chain:
+        how = (
+            f"uncertain hops reviewed by {ev.chain_model}" if ev.chain_model else "all hops certain"
+        )
+        say(f"[bold]call path from your code[/bold] [dim]({escape(how)})[/dim]")
+        for i, hop in enumerate(ev.call_chain):
+            mark = "  " if hop.certain else "? "
+            via = "" if i == 0 else f" via {hop.via}"
+            where = escape(f"{hop.file}:{hop.line}{via}")
+            say(f"  {mark}{escape(hop.symbol)}  [dim]{where}[/dim]")
     for candidate in ev.candidates:
         commits = ", ".join(candidate.commits)
         say(

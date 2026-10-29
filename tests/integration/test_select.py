@@ -53,6 +53,19 @@ def _variant(advisory_id: str) -> Finding:
     )
 
 
+def _no_prove(
+    repo: Path,
+    packages: Sequence[Package],
+    findings: Sequence[Finding],
+    analyzers: Analyzers,
+    model: ModelStack | None = None,
+    *,
+    trace: bool = True,
+) -> tuple[Finding, ...]:
+    """The prove stage has its own tests; here it would need real package sources."""
+    return tuple(findings)
+
+
 def _answers(request: ModelRequest) -> Reply:
     if "GHSA-pick" in request.user:
         return pick([ICO], QUOTE)
@@ -98,6 +111,7 @@ def test_scan_runs_the_select_stage(
         return (_variant("GHSA-pick"),)
 
     monkeypatch.setattr("vexproof.pipeline.analyze", fake_analyze)
+    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
     stack, _ = scripted_stack(_answers, tmp_path)
     result = scan(
         REPO,
@@ -108,7 +122,7 @@ def test_scan_runs_the_select_stage(
         sbom_path=SBOM,
     )
     assert result.findings[0].evidence.vulnerable_symbols == (ICO,)  # type: ignore[union-attr]
-    assert set(result.timings_s) == {"ingest", "intel", "analyze", "select"}
+    assert set(result.timings_s) == {"ingest", "intel", "analyze", "select", "prove"}
 
 
 # -- CLI ---------------------------------------------------------------------------------------
@@ -143,6 +157,7 @@ def test_cli_scan_with_model(
     monkeypatch.setenv("VEXPROOF_PRICE_INPUT_PER_M", "1")
     monkeypatch.setenv("VEXPROOF_PRICE_OUTPUT_PER_M", "2")
     monkeypatch.setattr("vexproof.pipeline.analyze", lambda *a: (_variant("GHSA-pick"),))
+    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
     out = tmp_path / "findings.json"
     result = runner.invoke(
         cli.app, ["scan", str(REPO), "--sbom", str(SBOM), "--json", str(out)], terminal_width=200
@@ -272,6 +287,7 @@ def test_local_server_works_without_a_key(
     monkeypatch.setenv("VEXPROOF_KEV_URL", KEV)
     monkeypatch.setenv("VEXPROOF_EPSS_URL", EPSS)
     monkeypatch.setattr("vexproof.pipeline.analyze", lambda *a: (_variant("GHSA-pick"),))
+    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
     scanned = runner.invoke(cli.app, ["scan", str(REPO), "--sbom", str(SBOM)], terminal_width=200)
     assert scanned.exit_code == 0, scanned.output
     assert "1 verified picks" in _flat(scanned.output)
