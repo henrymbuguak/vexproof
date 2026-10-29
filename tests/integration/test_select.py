@@ -14,6 +14,7 @@ from tests.helpers import EPSS, FIXTURES, KEV, OSV
 from tests.llm_fakes import Reply, ScriptedTransport, pick, scripted_stack
 from tests.symbol_fixtures import ICO, QUOTE, ico_finding
 from vexproof import cli
+from vexproof.config import Settings
 from vexproof.domain import Finding, Level, Package
 from vexproof.intel.http import JsonHttp
 from vexproof.llm import factory
@@ -280,3 +281,35 @@ def test_check_model_without_key() -> None:
     result = runner.invoke(cli.app, ["check-model"])
     assert result.exit_code == 1
     assert "MODEL_API_KEY is not set" in _flat(result.output)
+
+
+HOSTILE = "[/b] :cloud: [link=https://evil.example]click me[/link] [red]"
+
+
+def test_untrusted_text_is_printed_literally(tmp_path: Path) -> None:
+    """Advisory text, model output and model names must never be read as Rich markup or emoji."""
+    finding = _variant("GHSA-pick")
+    advisory = finding.advisory.model_copy(update={"summary": HOSTILE})
+    evidence = finding.evidence.model_copy(  # type: ignore[union-attr]
+        update={"notes": (f"model assessment (high confidence): {HOSTILE}",)}
+    )
+    hostile = finding.model_copy(update={"advisory": advisory, "evidence": evidence})
+    out = _findings_file(tmp_path, [hostile])
+    shown = runner.invoke(cli.app, ["show", str(out), "GHSA-pick"], terminal_width=200)
+    assert shown.exit_code == 0, shown.output  # a stray "[/b]" used to raise MarkupError
+    assert HOSTILE in shown.output
+    assert "\x1b]8;" not in shown.output  # no hidden terminal hyperlink
+
+    with cli.console.capture() as captured:
+        cloud = factory.build_stack(
+            ModelConfig(
+                api_key=None,
+                base_url="http://localhost:11434/v1",
+                model="muse-spark-open:cloud",
+                recordings_dir=tmp_path / "rec",
+            ),
+            live=ScriptedTransport([pick([ICO], QUOTE)], model="muse-spark-open:cloud"),
+        )
+        select_symbols([_variant("GHSA-pick")], cloud)
+        cli._render_usage(cloud, Settings())
+    assert "Model muse-spark-open:cloud: 1 call(s)" in captured.get()

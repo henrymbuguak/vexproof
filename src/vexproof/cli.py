@@ -9,6 +9,7 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from vexproof import __version__
@@ -40,7 +41,10 @@ from vexproof.sources.store import SourceStore
 from vexproof.symbols.gold import load_gold
 
 app = typer.Typer(help="Which dependency vulnerabilities actually reach your code, with proof.")
-console = Console()
+# Advisory text, model output and error messages are untrusted: never let Rich read them as markup
+# (a stray "[/b]" crashes, "[link=...]" plants a hidden hyperlink) or as emoji codes (":cloud:").
+# Every dynamic value goes through `escape`; markup appears only in literals written here.
+console = Console(emoji=False)
 
 LEVEL_LABELS = {
     Level.L0_NOT_IMPORTED.value: "not imported by your code (cleared)",
@@ -73,21 +77,21 @@ def _note(finding: Finding) -> str:
 
 
 def _render(result: ScanResult, profile: ServiceProfile | None) -> None:
-    table = Table(title=f"Findings for {result.source}", show_lines=False)
+    table = Table(title=f"Findings for {escape(result.source)}", show_lines=False)
     for column in ("Level", "Package", "Advisory", "Fixed in", "CVSS", "EPSS", "KEV", "Evidence"):
         table.add_column(column, overflow="fold")
     for f in sorted(result.findings, key=_sort_key):
         table.add_row(
             f.evidence.level.value if f.evidence else "-",
-            f"{f.package.name} {f.package.version}",
-            f.advisory.id,
-            f.advisory.fixed_in or "-",
+            escape(f"{f.package.name} {f.package.version}"),
+            escape(f.advisory.id),
+            escape(f.advisory.fixed_in or "-"),
             f"{f.signals.cvss:.1f}"
             if f.signals.cvss is not None
-            else (f.advisory.severity_label or "-"),
+            else escape(f.advisory.severity_label or "-"),
             f"{f.signals.epss:.3f}" if f.signals.epss is not None else "-",
             "yes" if f.signals.in_kev else "",
-            _note(f),
+            escape(_note(f)),
         )
     console.print(table)
     disputed = sum(1 for f in result.findings if f.advisory.disputed_by)
@@ -100,7 +104,7 @@ def _render(result: ScanResult, profile: ServiceProfile | None) -> None:
     console.print(
         f"{len(result.packages)} packages, {affected} with advisories, "
         f"[bold]{len(result.findings)} scanner alerts[/bold]"
-        + (f" | profile: {profile.service}" if profile else "")
+        + (f" | profile: {escape(profile.service)}" if profile else "")
     )
     if result.findings and any(f.evidence for f in result.findings):
         _render_funnel(result.findings)
@@ -136,7 +140,8 @@ def _render_usage(stack: ModelStack, settings: Settings) -> None:
         return
     cost = report.cost_usd(settings.price_input_per_m, settings.price_output_per_m)
     console.print(
-        f"Model {stack.label}: {total.calls} call(s), {total.replayed} replayed from recordings, "
+        f"Model {escape(stack.label)}: {total.calls} call(s), "
+        f"{total.replayed} replayed from recordings, "
         f"{total.input_tokens:,} input + {total.output_tokens:,} output tokens"
         + (f", about ${cost:.4f}" if cost is not None else "")
     )
@@ -257,7 +262,7 @@ def scan_command(
         finally:
             cache.close()
     except VexproofError as exc:
-        console.print(f"[red]error:[/red] {exc}")
+        console.print(f"[red]error:[/red] {escape(str(exc))}")
         raise typer.Exit(code=2) from exc
 
     _render(result, service_profile)
@@ -265,7 +270,7 @@ def scan_command(
         _render_usage(stack, settings)
     if json_out:
         json_out.write_text(json.dumps(_payload(result), indent=2) + "\n", encoding="utf-8")
-        console.print(f"wrote {json_out}")
+        console.print(f"wrote {escape(str(json_out))}")
 
 
 @app.command("show")
@@ -278,7 +283,9 @@ def show_command(
         data = json.loads(findings_json.read_text(encoding="utf-8"))
         findings = [Finding.model_validate(f) for f in data["findings"]]
     except (OSError, ValueError, KeyError) as exc:
-        console.print(f"[red]error:[/red] cannot read {findings_json}: {exc}")
+        console.print(
+            f"[red]error:[/red] cannot read {escape(str(findings_json))}: {escape(str(exc))}"
+        )
         raise typer.Exit(code=2) from exc
     wanted = advisory.upper()
     matches = [
@@ -289,7 +296,7 @@ def show_command(
         or wanted in (a.upper() for a in f.advisory.aliases)
     ]
     if not matches:
-        console.print(f"[red]no finding matches {advisory}[/red]")
+        console.print(f"[red]no finding matches {escape(advisory)}[/red]")
         raise typer.Exit(code=1)
     for finding in matches:
         _show(finding)
@@ -299,42 +306,44 @@ def _show(f: Finding) -> None:
     """Print one finding; long lines (URLs, qualnames) soft-wrap so they stay copyable."""
     say = functools.partial(console.print, soft_wrap=True)
     adv, ev = f.advisory, f.evidence
-    console.rule(f"{adv.id} in {f.package.name} {f.package.version}")
-    say(f"[bold]{adv.summary or '(no summary)'}[/bold]")
+    console.rule(escape(f"{adv.id} in {f.package.name} {f.package.version}"))
+    say(f"[bold]{escape(adv.summary or '(no summary)')}[/bold]")
     aliases = ", ".join(adv.aliases) or "-"
-    say(f"aliases: {aliases} | fixed in: {adv.fixed_in or '-'}")
+    say(escape(f"aliases: {aliases} | fixed in: {adv.fixed_in or '-'}"))
     signals = f.signals
     say(
-        f"CVSS {signals.cvss if signals.cvss is not None else '-'} | "
-        f"EPSS {signals.epss if signals.epss is not None else '-'} | "
-        f"KEV {'yes' if signals.in_kev else 'no'}"
-        + (f" | disputed by {adv.disputed_by}" if adv.disputed_by else "")
+        escape(
+            f"CVSS {signals.cvss if signals.cvss is not None else '-'} | "
+            f"EPSS {signals.epss if signals.epss is not None else '-'} | "
+            f"KEV {'yes' if signals.in_kev else 'no'}"
+            + (f" | disputed by {adv.disputed_by}" if adv.disputed_by else "")
+        )
     )
     if ev is None:
         say("no evidence yet (scan was run with --no-analysis)")
         return
     verdict = f.verdict.value if f.verdict else "pending"
     say(f"evidence level: [bold]{ev.level.value}[/bold] ({LEVEL_LABELS[ev.level.value]})")
-    say(f"verdict: {verdict}" + (f" ({f.justification})" if f.justification else ""))
+    say(escape(f"verdict: {verdict}" + (f" ({f.justification})" if f.justification else "")))
     if ev.vulnerable_symbols:
-        picked = ", ".join(ev.vulnerable_symbols)
-        say(f"[bold]picked:[/bold] {picked}  [dim]({ev.symbol_model})[/dim]")
+        picked = escape(", ".join(ev.vulnerable_symbols))
+        say(f"[bold]picked:[/bold] {picked}  [dim]({escape(ev.symbol_model or '')})[/dim]")
     if ev.symbol_quote:
-        say(f'  advisory says: "{ev.symbol_quote}"')
+        say(escape(f'  advisory says: "{ev.symbol_quote}"'))
     for candidate in ev.candidates:
         commits = ", ".join(candidate.commits)
         say(
-            f"  candidate: {candidate.qualname}  [dim]{candidate.file}, "
-            f"{candidate.changed_lines} changed line(s), commits {commits}[/dim]"
+            f"  candidate: {escape(candidate.qualname)}  [dim]{escape(candidate.file)}, "
+            f"{candidate.changed_lines} changed line(s), commits {escape(commits)}[/dim]"
         )
     for module in ev.changed_modules:
-        say(f"  changed module: {module}")
+        say(escape(f"  changed module: {module}"))
     for url in ev.fix_commits:
-        say(f"  fix commit: {url}")
+        say(escape(f"  fix commit: {url}"))
     for check in ev.checks_passed:
-        say(f"  check passed: {check}")
+        say(escape(f"  check passed: {check}"))
     for note in ev.notes:
-        say(f"  note: {note}")
+        say(escape(f"  note: {note}"))
 
 
 @app.command("check-model")
@@ -352,7 +361,7 @@ def check_model_command(
     settings = Settings()
     config = _model_config(settings)
     say = functools.partial(console.print, soft_wrap=True)
-    say(f"endpoint: {config.base_url} | model: {config.model} | api: {config.api}")
+    say(escape(f"endpoint: {config.base_url} | model: {config.model} | api: {config.api}"))
     if config.local:
         say("local model server: no API key needed")
     elif not config.api_key:
@@ -360,17 +369,18 @@ def check_model_command(
         raise typer.Exit(code=1)
     try:
         models = list_models(config.api_key or "local", config.base_url)
-        say(f"models available: {', '.join(models) or '(none listed)'}")
+        say(escape(f"models available: {', '.join(models) or '(none listed)'}"))
         if models and config.model not in models and f"{config.model}:latest" not in models:
-            say(f"[yellow]warning[/yellow]: {config.model} is not in that list; set VEXPROOF_MODEL")
+            model = escape(config.model)
+            say(f"[yellow]warning[/yellow]: {model} is not in that list; set VEXPROOF_MODEL")
     except ModelError as exc:
-        say(f"[yellow]warning[/yellow]: {exc}")
+        say(f"[yellow]warning[/yellow]: {escape(str(exc))}")
 
     result = ping(
         lambda api: build_stack(_model_config(settings, api=api, mode="live")), prefer=config.api
     )
     for api, error in result.errors.items():
-        say(f"  {api} API: [red]failed[/red]: {error}")
+        say(f"  {api} API: [red]failed[/red]: {escape(error)}")
     if result.api is None:
         say("[red]NO-GO[/red]: structured output works on neither API")
         raise typer.Exit(code=1)
@@ -388,10 +398,12 @@ def check_model_command(
         stack = build_stack(_model_config(settings, api=result.api))
         report = run_gold(cases, findings, stack)
     except (OSError, ValueError, KeyError) as exc:
-        console.print(f"[red]error:[/red] cannot read {findings_json}: {exc}")
+        console.print(
+            f"[red]error:[/red] cannot read {escape(str(findings_json))}: {escape(str(exc))}"
+        )
         raise typer.Exit(code=2) from exc
     except VexproofError as exc:
-        console.print(f"[red]error:[/red] {exc}")
+        console.print(f"[red]error:[/red] {escape(str(exc))}")
         raise typer.Exit(code=2) from exc
     _render_gold(report)
     _render_usage(stack, settings)
@@ -407,10 +419,10 @@ def _render_gold(report: GoldReport) -> None:
     for row in report.rows:
         style = colour.get(row.result, "yellow")
         table.add_row(
-            row.case.advisory,
+            escape(row.case.advisory),
             f"[{style}]{row.result}[/{style}]",
-            ", ".join(row.selected) or "-",
-            row.detail[:120],
+            escape(", ".join(row.selected) or "-"),
+            escape(row.detail[:120]),
         )
     console.print(table)
     missing = report.count("missing")
