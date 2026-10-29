@@ -7,14 +7,14 @@ Oracle: the project run under `shop.py` (30 steps) on Python 3.8.20 with django 
 | Measure | Result |
 | --- | --- |
 | Alerts | 94 |
-| Decided with evidence | 27 (28.7%): 14 cleared, 13 reachable |
+| Decided with evidence | 28 (29.8%): 14 cleared, 14 reachable |
 | Clears contradicted by the run (module loaded) | 0 of 14 |
 | Modules loaded at run time but missing from the closure | 0 of 470 (plus 1 compiled extension(s) with no source) |
-| Reachable alerts whose vulnerable function ran | 12 of 13 (1 not exercised by the workload) |
-| Open alerts whose picked function ran | 2 |
+| Reachable alerts whose vulnerable function ran | 13 of 14 (1 not exercised by the workload) |
+| Open alerts whose picked function ran | 1 |
 | Function picks matching gold labels | 13 of 13 |
-| Model cost of a scan without recordings | $1.1040 total, $0.01174 per alert |
-| Scan time | 14 s |
+| Model cost of a scan without recordings | $0.9503 total, $0.01011 per alert |
+| Scan time | 507 s |
 
 ## Reachable alerts
 
@@ -22,6 +22,7 @@ Oracle: the project run under `shop.py` (30 steps) on Python 3.8.20 with django 
 | --- | --- | --- |
 | GHSA-5hg3-6c2f-f3wr | `django.middleware.common.CommonMiddleware.get_full_path_with_slash` | yes |
 | GHSA-qw25-v68c-qjf3 | `django.http.response.HttpResponseRedirectBase.__init__` | yes |
+| GHSA-rf4j-j272-fj86 | `django.contrib.auth.forms.AuthenticationForm.clean` | yes |
 | GHSA-wh4h-v3f2-r2pp | `django.utils.numberformat.format` | yes |
 | GHSA-5gm3-px64-rw72 | `PIL.FpxImagePlugin.FpxImageFile._open_index` | yes |
 | GHSA-95q3-8gr9-gm8w | `PIL.IcoImagePlugin.IcoFile.frame` | yes |
@@ -62,7 +63,6 @@ Oracle: the project run under `shop.py` (30 steps) on Python 3.8.20 with django 
 Leads the path search missed; running a function does not by itself mean the vulnerable input can reach it.
 
 - GHSA-frmv-pr5f-9mcr: `django.db.models.query_utils.Q.__init__`
-- GHSA-rf4j-j272-fj86: `django.contrib.auth.forms.AuthenticationForm.clean`
 
 ## Function picks against gold labels
 
