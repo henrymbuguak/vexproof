@@ -59,7 +59,7 @@ The shape of a reported path (abridged):
 
 ```
 $ uv run vexproof show findings.json GHSA-95q3-8gr9-gm8w
-call path from your code (uncertain hops reviewed by muse-spark-open:cloud / trace_path.v1)
+call path from your code (uncertain hops reviewed by muse-spark-open:cloud / trace_path.v2)
      myshop.urls                                myshop/urls.py:7
    ? django.contrib.admin.options.ModelAdmin.urls  ...
      ...

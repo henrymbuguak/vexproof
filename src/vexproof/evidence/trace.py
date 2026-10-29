@@ -27,7 +27,7 @@ from vexproof.llm.types import BudgetExceededError, ModelError
 from vexproof.prompts import load_prompt
 from vexproof.static.codeindex import CodeIndex, Scope
 
-PROMPT_VERSION = "trace_path.v1"
+PROMPT_VERSION = "trace_path.v2"
 PURPOSE = "trace_path"
 MAX_STEPS = 8
 MAX_OUTPUT_TOKENS = 4096
@@ -65,10 +65,34 @@ class TraceAction(BaseModel):
 
 _WRAPPERS = ("arguments", "args", "parameters", "params", "input")
 _ALIASES = {
-    "action": ("tool", "name", "next_action", "type", "step"),
+    "action": (
+        "reply",
+        "decision",
+        "choice",
+        "verb",
+        "tool",
+        "name",
+        "next_action",
+        "type",
+        "step",
+    ),
     "symbol": ("target", "function", "qualname", "qualified_name"),
     "reason": ("rationale", "explanation", "why"),
 }
+
+
+# What models say instead of the five actions, seen with Muse Spark Open and close variants.
+_SYNONYMS = {
+    **dict.fromkeys(
+        ["avoid", "search_again", "re_search", "research", "retry", "reroute", "route",
+         "alternative", "find_path", "new_path", "reject_hop"],
+        "search",
+    ),
+    **dict.fromkeys(["approve", "confirm", "plausible", "accept_path", "yes"], "accept"),
+    **dict.fromkeys(["reject", "giveup", "stop", "no_path", "none", "unreachable"], "give_up"),
+    **dict.fromkeys(["find_callers", "who_calls", "list_callers", "caller"], "callers"),
+    **dict.fromkeys(["read", "show", "show_source", "view", "inspect", "code"], "source"),
+}  # fmt: skip
 
 
 def _unwrap(data: dict[str, object]) -> dict[str, object]:
@@ -94,7 +118,8 @@ def _tidy(data: dict[str, object]) -> dict[str, object]:
     """ "Give Up" -> "give_up"; a string for a list -> a list; null -> the default."""
     action = data.get("action")
     if isinstance(action, str):
-        data["action"] = action.strip().lower().replace(" ", "_").replace("-", "_")
+        word = action.strip().lower().replace(" ", "_").replace("-", "_")
+        data["action"] = _SYNONYMS.get(word, word)
     for field in ("avoid", "through"):
         value = data.get(field)
         if isinstance(value, str):
@@ -204,8 +229,8 @@ class Tracer:
                     target,
                     self._index,
                     self._extra,
-                    avoid=set(act.avoid),
-                    through=act.through,
+                    avoid=_avoid(act.avoid, target, current),
+                    through=[t for t in act.through if t != target.qualname],
                 )
                 current = result.path
                 observation = (
@@ -279,3 +304,11 @@ def _describe(act: TraceAction) -> str:
     if act.action in {"callers", "source"}:
         return f"{act.action}({act.symbol})"
     return act.action
+
+
+def _avoid(names: list[str], target: Scope, current: VerifiedPath | None) -> set[str]:
+    """The steps to avoid. Avoiding the target itself means "not this way in": its caller."""
+    avoided = set(names) - {target.qualname}
+    if target.qualname in names and current is not None and current.hops[:-1]:
+        avoided.add(current.hops[-2].symbol)
+    return avoided

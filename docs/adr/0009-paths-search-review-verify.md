@@ -17,7 +17,10 @@ while a model asked to find a 20-step path alone is slow and can invent steps.
   called; possible when a method is called on an object of unknown type.
 - **Search** (Dijkstra, backwards from the target): certain-only first; otherwise possible hops
   cost more the more functions share the name, and builtin method names (`split`, `format`)
-  more still. Registry dispatch (Pillow's `register_open`, `register_save`) is a named rule.
+  more still. Dispatch the code cannot show by name is a named rule: Pillow's `register_open`
+  and `register_save` registries, and Django's `View.dispatch`, which calls the handler named
+  after the HTTP verb on the same view object. Classes named in settings (`MIDDLEWARE`) reach
+  their constructor (certain) and `__call__` (possible, reviewed).
 - **Verify** every hop at its cited line, and carry types along the path: a view that builds a
   `CartAddProductForm` makes `self` a `CartAddProductForm` in the hops that follow. A failed
   verification blames the step that fixed the type, and the search tries again around it.

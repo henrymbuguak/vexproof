@@ -83,11 +83,31 @@ def _pillow_save(caller: Scope, callee: Scope, index: CodeIndex) -> bool:
     )
 
 
+DJANGO_VIEW = "django.views.generic.base.View"
+HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "head", "options", "trace"})
+
+
+def _django_view_dispatch(caller: Scope, callee: Scope, index: CodeIndex) -> bool:
+    """`View.dispatch` calls the handler named by the request method: `getattr(self, "post")`."""
+    return (
+        caller.qualname == f"{DJANGO_VIEW}.dispatch"
+        and callee.name in HTTP_METHODS
+        and callee.cls is not None
+        and (callee.cls == DJANGO_VIEW or callee.cls in index.subclasses(DJANGO_VIEW))
+    )
+
+
 RULES: dict[str, Rule] = {
     "pillow_open_registry": _pillow_open,
     "pillow_save_registry": _pillow_save,
+    "django_view_dispatch": _django_view_dispatch,
 }
-_DISPATCHERS = {"PIL.Image.open": "factory(", "PIL.Image.Image.save": "save_handler("}
+_SAME_OBJECT = frozenset({"django_view_dispatch"})  # rules that call a method of `self`
+_DISPATCHERS = {
+    "PIL.Image.open": "factory(",
+    "PIL.Image.Image.save": "save_handler(",
+    f"{DJANGO_VIEW}.dispatch": "request.method",
+}
 
 
 def _dispatch_line(caller: Scope, index: CodeIndex, marker: str) -> int:
@@ -104,11 +124,13 @@ def registry_edges(index: CodeIndex) -> dict[str, list[tuple[Scope, int, str]]]:
     edges: dict[str, list[tuple[Scope, int, str]]] = {}
     callees: list[Scope] = []
     for module in sorted(index.reach.reached):
-        if not module.startswith("PIL."):
-            continue
         code = index.code(module)
-        if code is not None:
+        if code is None:
+            continue
+        if module.startswith("PIL."):
             callees += [s for s in code.scopes.values() if s.kind == "function"]
+        else:
+            callees += [s for s in code.scopes.values() if s.name in HTTP_METHODS and s.cls]
     for caller_name, marker in _DISPATCHERS.items():
         caller = index.scope(caller_name)
         if caller is None or not index.reach.is_reached(caller.module):
@@ -157,8 +179,17 @@ def _edge(
     if best is not None:
         return best
     for name, rule in RULES.items():
-        if rule(caller, callee, index):
+        if not rule(caller, callee, index):
+            continue
+        if name not in _SAME_OBJECT:
             return _Hop(name, True, None)
+        if (
+            self_type
+            and callee.cls
+            and not (callee.cls == self_type or self_type in index.subclasses(callee.cls))
+        ):
+            continue  # the handler must belong to the class of `self`
+        return _Hop(name, True, self_type)
     if self_type:
         return (
             f"line {line} of {caller.qualname} does not reach {callee.qualname} when self is "
@@ -182,6 +213,9 @@ def _next_self_type(
     if site.recv.startswith("@"):
         known = index.resolve(site.recv[1:])
         return known if index.is_class(known) else None
+    if site.recv.startswith("%") and site.ref:
+        owner = index.resolve(site.ref.rsplit(".", 1)[0])
+        return owner if index.is_class(owner) else None  # Class.classmethod(): cls is Class
     return None
 
 

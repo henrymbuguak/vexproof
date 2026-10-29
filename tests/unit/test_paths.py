@@ -175,3 +175,65 @@ def test_classes_named_in_settings(tmp_path: Path) -> None:
         ("PIL.Hooks.Common.process_request", 13, "call", True),
         ("PIL.Hooks.Common.slash", 15, "call", True),
     ]
+
+
+VIEWS_LIBRARY = {
+    "django/__init__.py": "",
+    "django/views/__init__.py": "",
+    "django/views/generic/__init__.py": "",
+    "django/views/generic/base.py": """\
+class View:
+    @classmethod
+    def as_view(cls):
+        def view(request):
+            self = cls()
+            return self.dispatch(request)
+
+        return view
+
+    def dispatch(self, request):
+        handler = getattr(self, request.method.lower())
+        return handler(request)
+""",
+}
+PAGES = """\
+from django.views.generic.base import View
+
+
+class Page(View):
+    def post(self, request):
+        return request
+
+
+class Other(View):
+    def post(self, request):
+        return request
+
+
+ROUTE = Page.as_view()
+"""
+
+
+def test_django_class_based_view_dispatch(tmp_path: Path) -> None:
+    from tests.codebase import LIBRARY, PROJECT
+
+    _, index, _ = build(
+        tmp_path,
+        library={**LIBRARY, **VIEWS_LIBRARY},
+        project={**PROJECT, "shop/pages.py": PAGES},
+    )
+    route = [
+        Step("shop.pages", 14),
+        Step("django.views.generic.base.View.as_view", 6),
+        Step("django.views.generic.base.View.dispatch", 11),
+    ]
+    page = verify_path([*route, Step("shop.pages.Page.post", 5)], "shop.pages.Page.post", index)
+    assert isinstance(page, VerifiedPath), page
+    assert [h.via for h in page.hops] == ["start", "call", "call", "django_view_dispatch"]
+    assert page.possible_hops == 0  # Page.as_view() fixes the class of self all the way down
+    other = verify_path([*route, Step("shop.pages.Other.post", 10)], "shop.pages.Other.post", index)
+    assert isinstance(other, PathRejected)  # the dispatched view is a Page, not an Other
+    edges = registry_edges(index)
+    assert {s.qualname for s, _, _ in edges["shop.pages.Page.post"]} == {
+        "django.views.generic.base.View.dispatch"
+    }

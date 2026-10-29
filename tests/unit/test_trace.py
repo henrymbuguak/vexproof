@@ -182,6 +182,10 @@ def test_applying_reviewed_and_missing_paths(loose_index: CodeIndex, tmp_path: P
         ),  # tool-call shape, a string for a list
         ({"TraceAction": {"tool": "Give Up", "explanation": "no"}}, ("give_up", [], [], "", "no")),
         ({"action": "callers", "target": "a.b", "extra": 1}, ("callers", [], [], "a.b", "")),
+        # what Muse Spark Open actually sent
+        ({"action": "avoid", "reason": "a QuerySet"}, ("search", [], [], "", "a QuerySet")),
+        ({"reply": "search_again", "avoid": ["x"]}, ("search", ["x"], [], "", "")),
+        ({"decision": "Reject"}, ("give_up", [], [], "", "")),
     ],
 )
 def test_review_replies_in_other_shapes(
@@ -202,3 +206,14 @@ def test_unknown_actions_still_fail_and_say_what_came_back(tmp_path: Path) -> No
     )
     with pytest.raises(ModelOutputInvalidError, match=r"the reply began '\{\"action\": \"dance\""):
         stack.caller.ask(TraceAction, purpose="t", prompt_version="t.v1", system="s", user="u")
+
+
+def test_avoiding_the_target_means_avoiding_its_caller(
+    loose_index: CodeIndex, tmp_path: Path
+) -> None:
+    stack, live = scripted_stack(
+        [_act("search", avoid=[FRAME], through=[FRAME]), _act("give_up")], tmp_path
+    )
+    Tracer(loose_index, registry_edges(loose_index), stack.caller).trace(FRAME)
+    # the only route went through shop.views.process, now avoided: no path is left
+    assert "no verified path with those constraints" in live.requests[1].user
