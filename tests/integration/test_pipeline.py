@@ -73,11 +73,20 @@ def test_cli_scan_writes_json(
             str(FIXTURES.parents[1] / "examples/service_profile.yaml"),
             "--json",
             str(out),
+            "--html",
+            str(tmp_path / "report.html"),
+            "--openvex",
+            str(tmp_path / "vex.json"),
             "--no-analysis",
         ],
+        terminal_width=200,
     )
     assert result.exit_code == 0, result.output
     assert "3 scanner alerts" in result.output
+    assert "(OpenVEX: 3 under_investigation)" in result.output
+    vex = json.loads((tmp_path / "vex.json").read_text())
+    assert {s["status"] for s in vex["statements"]} == {"under_investigation"}
+    assert "not analysed" in (tmp_path / "report.html").read_text()
     assert "1 alert(s) disputed" in result.output
     assert "Evidence levels" not in result.output
     payload = json.loads(out.read_text())

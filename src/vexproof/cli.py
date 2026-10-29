@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -36,6 +37,10 @@ from vexproof.pipeline import (
     selection_counts,
     verdict_counts,
 )
+from vexproof.report.context import ReportContext, short_symbol
+from vexproof.report.html import render_html
+from vexproof.report.openvex import openvex, problems
+from vexproof.report.priority import Ranked, Tier, Upgrade, rank, upgrade_plan
 from vexproof.sources.git import GitFixFetcher
 from vexproof.sources.pypi import PyPIClient
 from vexproof.sources.store import SourceStore
@@ -55,34 +60,52 @@ LEVEL_LABELS = {
 }
 
 
-def _sort_key(finding: Finding) -> tuple[str, bool, float, float, str]:
-    s = finding.signals
-    level = finding.evidence.level.value if finding.evidence else "L9"
-    return (level, not s.in_kev, -(s.epss or 0.0), -(s.cvss or 0.0), finding.id)
+TIER_STYLE = {
+    Tier.FIX_NOW: "bold red",
+    Tier.FIX_SOON: "yellow",
+    Tier.REVIEW: "blue",
+    Tier.NOT_AFFECTED: "green",
+}
 
 
 def _note(finding: Finding) -> str:
-    if finding.evidence and finding.evidence.vulnerable_symbols:
-        first = finding.evidence.vulnerable_symbols[0]
-        more = len(finding.evidence.vulnerable_symbols) - 1
-        return "picked: " + first + (f" (+{more})" if more else "")
-    if finding.evidence and finding.evidence.candidates:
-        first = finding.evidence.candidates[0].qualname
-        more = len(finding.evidence.candidates) - 1
-        return first + (f" (+{more})" if more else "")
+    """The evidence in a few words; a dispute is always shown, whatever else is known."""
+    evidence = finding.evidence
+    text = ""
+    if evidence and evidence.call_chain:
+        start = evidence.call_chain[0]
+        text = f"{short_symbol(evidence.call_chain[-1].symbol)} <- {start.file}:{start.line}"
+    elif evidence and evidence.vulnerable_symbols:
+        text = "picked " + _first(evidence.vulnerable_symbols)
+    elif evidence and evidence.candidates:
+        text = _first(tuple(c.qualname for c in evidence.candidates))
+    elif evidence and evidence.notes:
+        text = evidence.notes[-1][:60]
     if finding.advisory.disputed_by:
-        return f"disputed by {finding.advisory.disputed_by}"
-    if finding.evidence and finding.evidence.notes:
-        return finding.evidence.notes[-1][:60]
-    return ""
+        text = (text + "; " if text else "") + f"disputed by {finding.advisory.disputed_by}"
+    return text
+
+
+def _first(names: tuple[str, ...]) -> str:
+    more = len(names) - 1
+    return short_symbol(names[0]) + (f" (+{more})" if more else "")
+
+
+def _tier_cell(tier: Tier) -> str:
+    style = TIER_STYLE[tier]
+    return f"[{style}]{tier.value}[/{style}]"
 
 
 def _render(result: ScanResult, profile: ServiceProfile | None) -> None:
     table = Table(title=f"Findings for {escape(result.source)}", show_lines=False)
-    for column in ("Level", "Package", "Advisory", "Fixed in", "CVSS", "EPSS", "KEV", "Evidence"):
+    columns = ("Priority", "Level", "Package", "Advisory", "Fixed in", "CVSS", "EPSS", "KEV")
+    for column in (*columns, "Evidence"):
         table.add_column(column, overflow="fold")
-    for f in sorted(result.findings, key=_sort_key):
+    ranked = rank(result.findings, profile)
+    for item in ranked:
+        f = item.finding
         table.add_row(
+            _tier_cell(item.tier) if f.evidence else "-",
             f.evidence.level.value if f.evidence else "-",
             escape(f"{f.package.name} {f.package.version}"),
             escape(f.advisory.id),
@@ -109,6 +132,16 @@ def _render(result: ScanResult, profile: ServiceProfile | None) -> None:
     )
     if result.findings and any(f.evidence for f in result.findings):
         _render_funnel(result.findings)
+        _render_tiers(ranked)
+
+
+def _render_tiers(ranked: list[Ranked], *, hint: bool = True) -> None:
+    counts = {tier: sum(1 for r in ranked if r.tier is tier) for tier in Tier}
+    console.print(
+        "Priority: "
+        + ", ".join(f"{_tier_cell(tier)} {count}" for tier, count in counts.items())
+        + (" | the plan: [bold]vexproof report[/bold] <findings.json>" if hint else "")
+    )
 
 
 def _render_funnel(findings: tuple[Finding, ...]) -> None:
@@ -221,6 +254,12 @@ def scan_command(
     json_out: Annotated[
         Path | None, typer.Option("--json", help="Write findings JSON here")
     ] = None,
+    html_out: Annotated[
+        Path | None, typer.Option("--html", help="Write a self-contained HTML report here")
+    ] = None,
+    vex_out: Annotated[
+        Path | None, typer.Option("--openvex", help="Write an OpenVEX document here")
+    ] = None,
     analysis: Annotated[
         bool, typer.Option(help="Analyse imports and fix commits (off: intel only)")
     ] = True,
@@ -302,6 +341,8 @@ def scan_command(
     if json_out:
         json_out.write_text(json.dumps(_payload(result), indent=2) + "\n", encoding="utf-8")
         console.print(f"wrote {escape(str(json_out))}")
+    context = _context(result.source, result.commit, result.findings, service_profile)
+    _write_reports(context, html_out, vex_out)
 
 
 @app.command("show")
@@ -310,14 +351,7 @@ def show_command(
     advisory: Annotated[str, typer.Argument(help="Advisory id, alias (CVE-...) or finding id")],
 ) -> None:
     """Explain one alert: its evidence level, candidate functions, fix commits and notes."""
-    try:
-        data = json.loads(findings_json.read_text(encoding="utf-8"))
-        findings = [Finding.model_validate(f) for f in data["findings"]]
-    except (OSError, ValueError, KeyError) as exc:
-        console.print(
-            f"[red]error:[/red] cannot read {escape(str(findings_json))}: {escape(str(exc))}"
-        )
-        raise typer.Exit(code=2) from exc
+    _, findings = _load_findings(findings_json)
     wanted = advisory.upper()
     matches = [
         f
@@ -331,6 +365,128 @@ def show_command(
         raise typer.Exit(code=1)
     for finding in matches:
         _show(finding)
+
+
+def _load_findings(path: Path) -> tuple[dict[str, object], tuple[Finding, ...]]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data, tuple(Finding.model_validate(f) for f in data["findings"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        console.print(f"[red]error:[/red] cannot read {escape(str(path))}: {escape(str(exc))}")
+        raise typer.Exit(code=2) from exc
+
+
+def _context(
+    source: str,
+    commit: str | None,
+    findings: tuple[Finding, ...],
+    profile: ServiceProfile | None,
+) -> ReportContext:
+    return ReportContext(
+        source=source,
+        commit=commit,
+        findings=findings,
+        generated_at=datetime.now(UTC).replace(microsecond=0),
+        tooling=f"vexproof {__version__}",
+        profile=profile,
+    )
+
+
+def _write_reports(
+    context: ReportContext, html_out: Path | None, vex_out: Path | None, author: str = "vexproof"
+) -> None:
+    if html_out:
+        html_out.write_text(render_html(context), encoding="utf-8")
+        console.print(f"wrote {escape(str(html_out))}")
+    if vex_out:
+        document = openvex(context, author=author)
+        broken = problems(document)
+        if broken:  # pragma: no cover - guarded by tests; never write an invalid document
+            raise VexproofError(f"OpenVEX document is invalid: {broken[0]}")
+        vex_out.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        statuses = [s["status"] for s in document["statements"]]
+        counts = ", ".join(f"{statuses.count(x)} {x}" for x in sorted(set(statuses)))
+        console.print(f"wrote {escape(str(vex_out))} (OpenVEX: {escape(counts)})")
+
+
+@app.command("report")
+def report_command(
+    findings_json: Annotated[Path, typer.Argument(help="JSON written by `vexproof scan --json`")],
+    profile: Annotated[Path | None, typer.Option(help="Service profile YAML")] = None,
+    html_out: Annotated[
+        Path | None, typer.Option("--html", help="Write a self-contained HTML report here")
+    ] = None,
+    vex_out: Annotated[
+        Path | None, typer.Option("--openvex", help="Write an OpenVEX document here")
+    ] = None,
+    author: Annotated[str, typer.Option(help="OpenVEX author")] = "vexproof",
+    top: Annotated[int, typer.Option(help="Alerts to list in the terminal")] = 15,
+) -> None:
+    """What to fix first and why, the upgrade that clears it, and OpenVEX/HTML exports."""
+    data, findings = _load_findings(findings_json)
+    try:
+        service_profile = load_service_profile(profile) if profile else None
+        context = _context(
+            str(data.get("source") or findings_json.stem),
+            str(data["commit"]) if data.get("commit") else None,
+            findings,
+            service_profile,
+        )
+        ranked = rank(findings, service_profile)
+        _render_priorities(ranked, top)
+        _render_upgrades(upgrade_plan(ranked))
+        _write_reports(context, html_out, vex_out, author)
+    except VexproofError as exc:
+        console.print(f"[red]error:[/red] {escape(str(exc))}")
+        raise typer.Exit(code=2) from exc
+
+
+def _render_priorities(ranked: list[Ranked], top: int) -> None:
+    table = Table(title="What to fix first, and why")
+    for column in ("Priority", "Advisory", "Package", "Fixed in", "Why"):
+        table.add_column(column, overflow="fold")
+    standing = [r for r in ranked if r.tier is not Tier.NOT_AFFECTED]
+    for item in standing[:top]:
+        f = item.finding
+        why = item.brief
+        if f.advisory.disputed_by and "disputed" not in why:
+            why += f"; disputed by {f.advisory.disputed_by}"
+        table.add_row(
+            _tier_cell(item.tier),
+            escape(f.advisory.id),
+            escape(f"{f.package.name} {f.package.version}"),
+            escape(f.advisory.fixed_in or "-"),
+            escape(why),
+        )
+    console.print(table)
+    hidden = len(standing) - min(top, len(standing))
+    if hidden:
+        console.print(f"... and {hidden} more (--top {len(standing)} to list them all)")
+    _render_tiers(ranked, hint=False)
+
+
+def _render_upgrades(plans: list[Upgrade]) -> None:
+    if not plans:
+        console.print("No upgrades needed: every alert is cleared.")
+        return
+    table = Table(title="Upgrade plan")
+    for column in ("Priority", "Package", "Installed", "Clears reachable", "Clears all", "Notes"):
+        table.add_column(column, overflow="fold")
+    for plan in plans:
+        notes = [f"resolves {len(plan.resolves)}"]
+        if plan.no_fix:
+            notes.append(f"{len(plan.no_fix)} without a fix")
+        if plan.major_jump:
+            notes.append("major version change")
+        table.add_row(
+            _tier_cell(plan.tier),
+            escape(plan.package),
+            escape(plan.installed),
+            escape(f">= {plan.reachable_target}" if plan.reachable_target else "-"),
+            escape(f">= {plan.target}" if plan.target else "-"),
+            escape(", ".join(notes)),
+        )
+    console.print(table)
 
 
 def _show(f: Finding) -> None:
