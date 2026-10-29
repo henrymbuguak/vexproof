@@ -10,7 +10,8 @@ deterministically, and exports the result as [OpenVEX](https://github.com/openve
 
 > Status: under construction for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026).
 > Done: ingest, vulnerability intel, deterministic analysis (import closure, fix-commit
-> shortlists), and Muse Spark symbol selection with a verifier. Next: the evidence engine.
+> shortlists), Muse Spark symbol selection with a verifier, and the evidence engine (module-level
+> clears, verified call paths). Next: prioritization, OpenVEX and reports.
 
 ## How an alert is analysed
 
@@ -37,6 +38,37 @@ about, quoting the advisory to justify the pick. Nothing it says is trusted unti
 A rejected pick changes nothing and is recorded as a note. Every answer is recorded, keyed by
 model, prompt version and inputs, so a re-run is free and reproducible (`VEXPROOF_MODEL_MODE`).
 
+### Where each alert ends up
+
+| Outcome | Evidence | Decided by |
+| --- | --- | --- |
+| **cleared** | the package is never imported by your code | import closure (L0) |
+| **cleared** | the module holding the vulnerable function is never loaded | module closure: imports, dotted strings, and written-down framework rules (Django app loading, Pillow's plugin list); refused if anything loads code by a name it cannot see |
+| **reachable** | a call path from your code to the vulnerable function, every hop certain | path search and verifier, no model |
+| **reachable** | a call path whose uncertain hops Muse Spark judged plausible | path search proposes, Muse Spark reviews, the verifier re-checks every hop |
+| **open** | neither | listed for review, never silently dropped |
+
+A *certain* hop calls something whose identity the code shows: a function through its imports,
+or a method on an object whose class is known (`self`, `super()`, `form = PasswordResetForm()`).
+An *uncertain* hop calls a method on an object of unknown type, which Python resolves at run time;
+those are what the model reviews. Types are carried along a path, so once your view builds a
+`CartAddProductForm`, `self.clean()` further down cannot be `AuthenticationForm.clean`. No path
+found never clears an alert: only the module closure does.
+
+The shape of a reported path (abridged):
+
+```
+$ uv run vexproof show findings.json GHSA-95q3-8gr9-gm8w
+call path from your code (uncertain hops reviewed by muse-spark-open:cloud / trace_path.v1)
+     myshop.urls                                myshop/urls.py:7
+   ? django.contrib.admin.options.ModelAdmin.urls  ...
+     ...
+     PIL.Image.open                              PIL/Image.py:2549 via call
+     PIL.ImageFile.ImageFile.__init__            PIL/ImageFile.py:102 via pillow_open_registry
+     ...
+     PIL.IcoImagePlugin.IcoFile.frame            PIL/IcoImagePlugin.py:153 via call
+```
+
 Nothing is installed or executed: package code comes from wheels read as data, and fix commits are
 fetched with `git fetch --depth=2 --filter=blob:none` (no token or API needed).
 
@@ -51,7 +83,8 @@ uv run vexproof scan https://github.com/<owner>/<repo> --commit <sha> --json fin
 uv run vexproof show findings.json CVE-2019-19844       # explain one alert
 ```
 
-With `MODEL_API_KEY` in `.env`, `scan` also runs symbol selection (`--no-model` turns it off).
+With a model configured, `scan` also picks vulnerable functions and reviews call paths
+(`--no-model` turns the model off; `--no-trace` skips call paths only).
 Before trusting a model, run the go/no-go check:
 
 ```bash
