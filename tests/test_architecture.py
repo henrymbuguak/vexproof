@@ -18,6 +18,8 @@ ALLOWED = {
     "llm": {"errors", "llm"},
     "prompts": set(),
     "symbols": {"domain", "errors", "llm", "prompts", "symbols"},
+    # evidence combines static analysis with the model; static never depends on it
+    "evidence": {"domain", "errors", "evidence", "llm", "prompts", "static"},
 }
 
 

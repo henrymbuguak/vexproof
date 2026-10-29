@@ -93,9 +93,20 @@ class Signals(Frozen):
 
 
 class Hop(Frozen):
+    """One step of a call path: `symbol` (in `file`) is reached `via` the previous step.
+
+    `line` is where this step mentions the next one; for the last step, its definition.
+    """
+
     file: str = Field(min_length=1)
     line: int = Field(ge=1)
     symbol: str = Field(min_length=1)
+    via: str = Field(
+        default="call", description="start, call, attr, name, string, or a dispatch rule"
+    )
+    certain: bool = Field(
+        default=True, description="false when the object a method is called on has unknown type"
+    )
 
 
 class Candidate(Frozen):
@@ -121,7 +132,11 @@ class Evidence(Frozen):
     vulnerable_symbols: tuple[str, ...] = ()
     symbol_quote: str | None = None
     symbol_model: str | None = Field(default=None, description="model and prompt that chose them")
+    native_changes: tuple[str, ...] = Field(
+        default=(), description="non-Python files of this package that the fix also changes"
+    )
     call_chain: tuple[Hop, ...] = ()
+    chain_model: str | None = Field(default=None, description="model and prompt that found it")
     checks_passed: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 

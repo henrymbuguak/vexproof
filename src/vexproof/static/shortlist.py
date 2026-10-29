@@ -27,6 +27,10 @@ from vexproof.static.functions import FunctionSpan, enclosing, function_spans
 MAX_COMMITS = 6
 MAX_SNIPPET_LINES = 60
 _DOC_SUFFIXES = frozenset({".rst", ".md", ".txt", ".toml", ".cfg", ".ini", ".yml", ".yaml", ""})
+# Compiled-language sources: code that can run without any Python module of the package naming it.
+_COMPILED_SUFFIXES = frozenset(
+    {".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".pyx", ".pxd", ".rs", ".go", ".m", ".s", ".asm"}
+)
 
 
 class FixSource(Protocol):
@@ -41,6 +45,7 @@ class Shortlist:
     changed_modules: tuple[str, ...] = ()
     fix_commits: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
+    native_changes: tuple[str, ...] = ()  # non-Python files of the package the fix changes
 
 
 @dataclass
@@ -53,7 +58,8 @@ class _Acc:
     absent_functions: set[str] = field(default_factory=set)
     hunks: dict[str, list[str]] = field(default_factory=dict)
     snippet_commit: dict[str, str] = field(default_factory=dict)
-    native_paths: set[str] = field(default_factory=set)
+    native_paths: set[str] = field(default_factory=set)  # from commits with no Python change
+    native_any: set[str] = field(default_factory=set)  # compiled sources, from every commit
     unmapped: bool = False
     notes: list[str] = field(default_factory=list)
 
@@ -135,6 +141,9 @@ def _apply_commit(diff: CommitDiff, tree: SourceTree, fetcher: FixSource, acc: _
     native = [
         p for p in code if not p.endswith(".py") and PurePosixPath(p).suffix not in _DOC_SUFFIXES
     ]
+    acc.native_any.update(
+        p for p in native if PurePosixPath(p).suffix.lower() in _COMPILED_SUFFIXES
+    )
     if native and not any(p.endswith(".py") for p in code):
         acc.native_paths.update(native)
     for patched in PatchSet(diff.python_patch):
@@ -229,6 +238,7 @@ def build_shortlist(advisory: Advisory, tree: SourceTree, fetcher: FixSource) ->
         changed_modules=tuple(sorted(acc.modules_changed)),
         fix_commits=tuple(used),
         notes=tuple(notes),
+        native_changes=tuple(sorted(acc.native_any)),
     )
 
 

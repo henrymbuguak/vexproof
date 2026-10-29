@@ -85,6 +85,17 @@ def test_native_only_fix_gives_l3_with_paths(
     assert result.notes == (
         "the fix changes only non-Python code (compiled or bundled): src/examplelib/_speedups.c",
     )
+    assert result.native_changes == ("src/examplelib/_speedups.c",)
+
+
+def test_native_changes_are_kept_next_to_python_ones(
+    upstream: Upstream, fetcher: GitFixFetcher, installed: SourceTree
+) -> None:
+    result = build_shortlist(_advisory(upstream.fix, upstream.native_fix), installed, fetcher)
+    assert result.level is Level.L1_SYMBOL
+    assert result.native_changes == ("src/examplelib/_speedups.c",)
+    python_only = build_shortlist(_advisory(upstream.fix), installed, fetcher)
+    assert python_only.native_changes == ()
 
 
 def test_functions_absent_from_installed_version(
