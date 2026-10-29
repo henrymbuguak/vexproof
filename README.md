@@ -123,6 +123,31 @@ open-weight **Muse Spark Open** (`muse-spark-open:cloud`) or a local Llama, with
 (see the commented blocks in `.env.example`). The same verifier and gold test apply, and each
 finding records which model chose its symbols.
 
+## Evaluation: checked against the running project
+
+Static claims are checked against an oracle: the demo project itself, run with its exact
+pinned packages under a scripted workload (browse, cart, checkout, admin login, and product
+image uploads in twelve formats). `eval/dynamic/observe.py` records every module that loaded
+and every function that ran; `vexproof eval` compares the scan with it:
+
+```bash
+uv run vexproof eval findings.json --observed eval/observed/shop-1aa90f6.json \
+    --gold eval/gold/symbols.yaml --markdown eval/results/shop.md
+```
+
+| Check | Fails the gate |
+| --- | --- |
+| A cleared alert's module loaded at run time | yes |
+| A module loaded at run time is missing from the scan's closure | yes |
+| A reachable alert's vulnerable function ran | no: confirms the path |
+| An open alert's picked function ran | no: a lead the path search missed |
+| Function picks against gold labels, and model cost per alert | no: reported |
+
+The oracle runs target code, so it lives outside the scanner (ADR 0011) and runs in a
+throwaway environment: `eval/dynamic/observe_shop.sh` rebuilds the observation from scratch.
+Its first run found a real gap, now fixed: Django loads migration files such as
+`0001_initial.py` by name, and the closure had skipped them.
+
 ## Development
 
 | Command | What it does |
@@ -145,7 +170,8 @@ history shows its progression.
   uvicorn (web). See `pyproject.toml` and `uv.lock` for exact versions.
 - **External tools:** [Syft](https://github.com/anchore/syft) for SBOM generation;
   optionally [Ollama](https://ollama.com) to serve Meta's open-weight models (Muse Spark Open,
-  Llama).
+  Llama). For evaluation only: uv-managed CPython 3.8 to run the demo project, and the demo
+  project's own pinned packages.
 - **Standards:** [OpenVEX v0.2.0](https://github.com/openvex/spec) for the VEX export and
   [package URLs](https://github.com/package-url/purl-spec) to name products.
 - **Data sources:** [OSV.dev](https://osv.dev) (including GitHub Security Advisories and the PyPA

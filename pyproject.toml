@@ -50,8 +50,10 @@ web = [
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
-# Fixture repos are analysis targets, not project code.
-extend-exclude = ["tests/fixtures"]
+# Fixture repos are analysis targets, not project code. eval/dynamic runs inside the target
+# project's own old interpreter (Python 3.8), so it is not held to this project's py312 rules.
+extend-exclude = ["tests/fixtures", "eval/dynamic"]
+force-exclude = true  # also when pre-commit passes excluded files by name
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "SIM", "RUF", "PT", "ANN", "N", "C4", "PL", "TRY", "PTH"]
