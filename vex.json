@@ -1,0 +1,2260 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://openvex.dev/docs/public/vex-89eff1b62efb772736df358139df9a8eb6ef4188cfb823e27f663757c919358f",
+  "author": "vexproof",
+  "role": "Document Creator",
+  "timestamp": "2026-10-29T16:33:59Z",
+  "version": 1,
+  "tooling": "vexproof 0.1.0",
+  "statements": [
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-2f9x-5v75-3qv4",
+        "name": "GHSA-2f9x-5v75-3qv4",
+        "description": "Django Denial-of-service possibility in truncatechars_html and truncatewords_html template filters",
+        "aliases": [
+          "CVE-2018-7537",
+          "PYSEC-2018-6"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "only the changed module is known, and it is not proven unused; CVSS 2.7, EPSS 4.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-337x-4q8g-prc5",
+        "name": "GHSA-337x-4q8g-prc5",
+        "description": "Improper Input Validation in Django",
+        "aliases": [
+          "CVE-2019-3498",
+          "PYSEC-2019-17"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 7.1, EPSS 3.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-3h9f-r86x-qvjx",
+        "name": "GHSA-3h9f-r86x-qvjx",
+        "description": "Django: cache middleware may expose private responses when unrelated request cookies are present",
+        "aliases": [
+          "BIT-django-2026-48588",
+          "CVE-2026-48588",
+          "PYSEC-2026-2090"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function UpdateCacheMiddleware.process_response found; no verified call path from your code; CVSS 2.3, EPSS 0.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-5hg3-6c2f-f3wr",
+        "name": "GHSA-5hg3-6c2f-f3wr",
+        "description": "Django open redirect",
+        "aliases": [
+          "CVE-2018-14574",
+          "PYSEC-2018-2"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade django from 2.0 to 2.0.8 or later.",
+      "status_notes": "reachable: myshop/settings.py:37 reaches CommonMiddleware.get_full_path_with_slash in 3 hop(s), 1 uncertain hop(s) reviewed by the model. Priority: fix now. Call path: myshop.settings (myshop/settings.py:37) -> django.utils.deprecation.MiddlewareMixin.__call__ (django/utils/deprecation.py:93) -> django.middleware.common.CommonMiddleware.process_request (django/middleware/common.py:61) -> django.middleware.common.CommonMiddleware.get_full_path_with_slash (django/middleware/common.py:83)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-68w8-qjq3-2gfm",
+        "name": "GHSA-68w8-qjq3-2gfm",
+        "description": "Path Traversal in Django",
+        "aliases": [
+          "BIT-django-2021-33203",
+          "CVE-2021-33203",
+          "PYSEC-2021-98"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: django.contrib.admindocs.views (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-6c3j-c64m-qhgq",
+        "name": "GHSA-6c3j-c64m-qhgq",
+        "description": "XSS in jQuery as used in Drupal, Backdrop CMS, and other products",
+        "aliases": [
+          "CVE-2019-11358",
+          "DRUPAL-CORE-2019-006",
+          "PYSEC-2026-628",
+          "SNYK-JS-JQUERY-174006"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 6.1, EPSS 86.8%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-6w2r-r2m5-xq5w",
+        "name": "GHSA-6w2r-r2m5-xq5w",
+        "description": "Django is subject to SQL injection through its column aliases",
+        "aliases": [
+          "BIT-django-2025-57833",
+          "CVE-2025-57833",
+          "PYSEC-2025-105"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function Query.add_filtered_relation found; no verified call path from your code; CVSS 7.1, EPSS 26.1%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-7xr5-9hcq-chf9",
+        "name": "GHSA-7xr5-9hcq-chf9",
+        "description": "Django Improper Output Neutralization for Logs vulnerability",
+        "aliases": [
+          "BIT-django-2025-48432",
+          "CVE-2025-48432",
+          "PYSEC-2025-47"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 4.0, EPSS 0.8%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8cjm-8mp7-r2xf",
+        "name": "GHSA-8cjm-8mp7-r2xf",
+        "description": "Django: UpdateCacheMiddleware may disclose cached responses due to case-sensitive Cache-Control handling",
+        "aliases": [
+          "BIT-django-2026-8404",
+          "CVE-2026-8404",
+          "PYSEC-2026-201"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function UpdateCacheMiddleware.process_response found; no verified call path from your code; CVSS 2.3, EPSS 0.3%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8qcx-xf44-272x",
+        "name": "GHSA-8qcx-xf44-272x",
+        "description": "Django: DomainNameValidator permits newline characters that may enable HTTP header injection",
+        "aliases": [
+          "BIT-django-2026-53878",
+          "CVE-2026-53878",
+          "PYSEC-2026-2092"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "only the changed module is known, and it is not proven unused; CVSS 5.3, EPSS 0.3%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8x94-hmjh-97hq",
+        "name": "GHSA-8x94-hmjh-97hq",
+        "description": "Django vulnerable to Reflected File Download attack",
+        "aliases": [
+          "BIT-django-2022-36359",
+          "CVE-2022-36359",
+          "PYSEC-2022-245"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "only the changed module is known, and it is not proven unused; CVSS 8.8, EPSS 0.9%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-923m-gv2p-w5qp",
+        "name": "GHSA-923m-gv2p-w5qp",
+        "description": "Django: has_vary_header may expose cached responses when Vary values contain whitespace",
+        "aliases": [
+          "BIT-django-2026-48587",
+          "CVE-2026-48587",
+          "PYSEC-2026-198"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function cache.has_vary_header found; no verified call path from your code; CVSS 2.3, EPSS 0.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-crhf-3pfg-w68w",
+        "name": "GHSA-crhf-3pfg-w68w",
+        "description": " Django: GDALRaster may over-read heap memory when constructed from bytes",
+        "aliases": [
+          "BIT-django-2026-53877",
+          "CVE-2026-53877",
+          "PYSEC-2026-2091"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: django.contrib.gis.gdal.raster.source (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-frmv-pr5f-9mcr",
+        "name": "GHSA-frmv-pr5f-9mcr",
+        "description": "Django vulnerable to SQL injection via _connector keyword argument in QuerySet and Q objects.",
+        "aliases": [
+          "BIT-django-2025-64459",
+          "CVE-2025-64459",
+          "PYSEC-2025-108"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function Q.__init__ found; no verified call path from your code; CVSS 9.1, EPSS 19.3%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-h7pc-vwp9-298g",
+        "name": "GHSA-h7pc-vwp9-298g",
+        "description": "Django: signed cookies are vulnerable to salt namespace collisions",
+        "aliases": [
+          "BIT-django-2026-6873",
+          "CVE-2026-6873",
+          "PYSEC-2026-199"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function HttpRequest.get_signed_cookie, HttpResponseBase.set_signed_cookie found; no verified call path from your code; CVSS 2.3, EPSS 0.2%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-hmr4-m2h5-33qx",
+        "name": "GHSA-hmr4-m2h5-33qx",
+        "description": "SQL injection in Django",
+        "aliases": [
+          "BIT-django-2020-7471",
+          "CVE-2020-7471",
+          "PYSEC-2020-35"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: django.contrib.postgres.aggregates.general (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-q238-5cxm-5c9h",
+        "name": "GHSA-q238-5cxm-5c9h",
+        "description": "Django GeoDjango vulnerable to denial of service through deeply nested geometry collections",
+        "aliases": [
+          "BIT-django-2026-15830",
+          "CVE-2026-15830",
+          "PYSEC-2026-3717"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: django.contrib.gis.db.models.fields, django.contrib.gis.forms.fields, django.contrib.gis.geos.geometry, django.contrib.gis.geos.prototypes.io (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-qw25-v68c-qjf3",
+        "name": "GHSA-qw25-v68c-qjf3",
+        "description": "Django has a denial-of-service vulnerability in HttpResponseRedirect and HttpResponsePermanentRedirect on Windows",
+        "aliases": [
+          "BIT-django-2025-64458",
+          "CVE-2025-64458",
+          "PYSEC-2025-107"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade django from 2.0 to 4.2.26 or later.",
+      "status_notes": "reachable: myshop/settings.py:35 reaches HttpResponseRedirectBase.__init__ in 3 hop(s), 1 uncertain hop(s) reviewed by the model. Priority: fix now. Call path: myshop.settings (myshop/settings.py:35) -> django.utils.deprecation.MiddlewareMixin.__call__ (django/utils/deprecation.py:93) -> django.middleware.security.SecurityMiddleware.process_request (django/middleware/security.py:26) -> django.http.response.HttpResponseRedirectBase.__init__ (django/http/response.py:405)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-r28v-mw67-m5p9",
+        "name": "GHSA-r28v-mw67-m5p9",
+        "description": "Django denial-of-service possibility in urlize and urlizetrunc template filters",
+        "aliases": [
+          "CVE-2018-7536",
+          "PYSEC-2018-5"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function html.urlize found; no verified call path from your code; CVSS 6.9, EPSS 4.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-rf4j-j272-fj86",
+        "name": "GHSA-rf4j-j272-fj86",
+        "description": "Django vulnerable to information leakage in AuthenticationForm",
+        "aliases": [
+          "CVE-2018-6188",
+          "PYSEC-2018-4"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function AuthenticationForm.clean found; no verified call path from your code; CVSS 8.7, EPSS 4.8%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-rrqc-c2jx-6jgv",
+        "name": "GHSA-rrqc-c2jx-6jgv",
+        "description": "Django allows enumeration of user e-mail addresses",
+        "aliases": [
+          "BIT-django-2024-45231",
+          "CVE-2024-45231",
+          "PYSEC-2026-1297"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function PasswordResetForm.send_mail found; no verified call path from your code; CVSS 6.3, EPSS 0.8%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-vfq6-hq5r-27r6",
+        "name": "GHSA-vfq6-hq5r-27r6",
+        "description": "Django Potential account hijack via password reset form",
+        "aliases": [
+          "CVE-2019-19844",
+          "PYSEC-2019-16"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function PasswordResetForm.save, PasswordResetForm.get_users found; no verified call path from your code; CVSS 9.3, EPSS 53.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-wh4h-v3f2-r2pp",
+        "name": "GHSA-wh4h-v3f2-r2pp",
+        "description": "Uncontrolled Memory Consumption in Django",
+        "aliases": [
+          "CVE-2019-6975",
+          "PYSEC-2019-18"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade django from 2.0 to 2.0.11 or later.",
+      "status_notes": "reachable: cart/views.py:30 reaches numberformat.format in 7 hop(s), 1 uncertain hop(s) reviewed by the model. Priority: fix now. Call path: cart.views.cart_detail (cart/views.py:30) -> django.shortcuts.render (django/shortcuts.py:36) -> django.template.loader.render_to_string (django/template/loader.py:62) -> django.template.base.VariableNode.render (django/template/base.py:999) -> django.template.base.render_value_in_context (django/template/base.py:975) -> django.utils.formats.localize (django/utils/formats.py:199) -> django.utils.formats.number_format (django/utils/formats.py:176) -> django.utils.numberformat.format (django/utils/numberformat.py:7)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-wvqv-fj8w-qmhm",
+        "name": "GHSA-wvqv-fj8w-qmhm",
+        "description": "Django GeoDjango spatial lookups allow file writes and outbound requests through GDAL raster parsing",
+        "aliases": [
+          "BIT-django-2026-15307",
+          "CVE-2026-15307",
+          "PYSEC-2026-4035"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/django@2.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: django.contrib.gis.db.models.fields, django.contrib.gis.gdal.raster.source (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-27h8-gf7j-v5hc",
+        "name": "GHSA-27h8-gf7j-v5hc",
+        "description": "Pillow: NULL dereference in ImagingExpand via rank filters on zero-size images",
+        "aliases": [
+          "BIT-pillow-2026-112392",
+          "CVE-2026-112392",
+          "PYSEC-2026-4326"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.2, EPSS 0.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-332p-7hrc-92wf",
+        "name": "GHSA-332p-7hrc-92wf",
+        "description": "Pillow: Heap buffer overflow in _tiffWriteProc when saving TIFF to BytesIO",
+        "aliases": [
+          "BIT-pillow-2026-112393",
+          "CVE-2026-112393"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.2, EPSS 1.0%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-3f63-hfp8-52jq",
+        "name": "GHSA-3f63-hfp8-52jq",
+        "description": "Arbitrary Code Execution in Pillow",
+        "aliases": [
+          "BIT-pillow-2023-50447",
+          "CVE-2023-50447",
+          "PYSEC-2026-457"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.ImageMath (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-3j72-p6qg-6xp7",
+        "name": "GHSA-3j72-p6qg-6xp7",
+        "description": "Pillow: TarIO negative size field causes infinite CPU-spin loop",
+        "aliases": [
+          "CVE-2026-96642"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.TarIO (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-3wvg-mj6g-m9cv",
+        "name": "GHSA-3wvg-mj6g-m9cv",
+        "description": "Pillow Uncontrolled Resource Consumption",
+        "aliases": [
+          "BIT-pillow-2021-27922",
+          "CVE-2021-27922",
+          "PYSEC-2021-41"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function IcnsImagePlugin.read_png_or_jpeg2000 found; no verified call path from your code; CVSS 8.7, EPSS 4.9%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-3xv8-3j54-hgrp",
+        "name": "GHSA-3xv8-3j54-hgrp",
+        "description": "Out-of-bounds read in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-10378",
+          "CVE-2020-10378",
+          "PYSEC-2020-77"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.2, EPSS 1.1%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-43fq-w8qq-v88h",
+        "name": "GHSA-43fq-w8qq-v88h",
+        "description": "Out-of-bounds read in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-11538",
+          "CVE-2020-11538",
+          "PYSEC-2020-80"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.2, EPSS 2.5%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-44wm-f244-xhp3",
+        "name": "GHSA-44wm-f244-xhp3",
+        "description": "Pillow buffer overflow vulnerability",
+        "aliases": [
+          "BIT-pillow-2024-28219",
+          "CVE-2024-28219",
+          "PYSEC-2026-1793"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 7.3, EPSS 1.0%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-4558-3h8r-v8xp",
+        "name": "GHSA-4558-3h8r-v8xp",
+        "description": "Pillow: P;2L and P;4L decoders may read 1 to 3 bytes past the passed buffer size",
+        "aliases": [
+          "BIT-pillow-2026-112394",
+          "CVE-2026-112394",
+          "PYSEC-2026-4327"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function Image.frombytes found; no verified call path from your code; CVSS 6.3, EPSS 0.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-45hq-cxwh-f6vc",
+        "name": "GHSA-45hq-cxwh-f6vc",
+        "description": "Pillow `BdfFontFile`: `Image.new()` called without `_decompression_bomb_check()` \u2014 bomb protection bypass via font loading",
+        "aliases": [
+          "BIT-pillow-2026-55379",
+          "CVE-2026-55379",
+          "PYSEC-2026-2255"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.BdfFontFile (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-4fx9-vc88-q2xc",
+        "name": "GHSA-4fx9-vc88-q2xc",
+        "description": "Infinite loop in Pillow"
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "only the changed module is known, and it is not proven unused; rated low, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-4rm8-3hmm-39fg",
+        "name": "GHSA-4rm8-3hmm-39fg",
+        "description": "Pillow: Reachable undefined behavior in native integer operations, potentially leading to denial of service or logic integrity compromise",
+        "aliases": [
+          "CVE-2026-96641"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 6.5, EPSS 0.3%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-4x4j-2g7c-83w6",
+        "name": "GHSA-4x4j-2g7c-83w6",
+        "description": "Pillow: WindowsViewer.get_command() OS command injection via unescaped shell path",
+        "aliases": [
+          "BIT-pillow-2026-55798",
+          "CVE-2026-55798",
+          "PYSEC-2026-2257"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function WindowsViewer.get_command found; no verified call path from your code; CVSS 4.5, EPSS 0.2%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-57h3-9rgr-c24m",
+        "name": "GHSA-57h3-9rgr-c24m",
+        "description": "Out of bounds write in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-25289",
+          "CVE-2021-25289",
+          "PYSEC-2021-35"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.3, EPSS 2.3%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-58r4-6rv3-gfh8",
+        "name": "GHSA-58r4-6rv3-gfh8",
+        "description": "Pillow: Out-of-bounds access in _imagingmorph on a zero-width image",
+        "aliases": [
+          "BIT-pillow-2026-112397",
+          "CVE-2026-112397"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 0.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-5gm3-px64-rw72",
+        "name": "GHSA-5gm3-px64-rw72",
+        "description": "Uncontrolled Resource Consumption in Pillow",
+        "aliases": [
+          "CVE-2019-19911",
+          "PYSEC-2020-172"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 6.2.2 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches FpxImageFile._open_index in 5 hop(s), every hop certain. Priority: fix now. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.FpxImagePlugin.FpxImageFile._open (PIL/FpxImagePlugin.py:71) -> PIL.FpxImagePlugin.FpxImageFile._open_index (PIL/FpxImagePlugin.py:73)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-5x8w-8jj5-q52h",
+        "name": "GHSA-5x8w-8jj5-q52h",
+        "description": "Pillow: Heap buffer overflow in FlashPix (FPX) JPEG decoding leads to code execution",
+        "aliases": [
+          "BIT-pillow-2026-112398",
+          "CVE-2026-112398"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.2, EPSS 0.7%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-5x94-69rx-g8h2",
+        "name": "GHSA-5x94-69rx-g8h2",
+        "description": "Pillow: `FontFile.compile()`: `Image.new()` called without `_decompression_bomb_check()`",
+        "aliases": [
+          "BIT-pillow-2026-54060",
+          "CVE-2026-54060",
+          "PYSEC-2026-2254"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.FontFile (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-62p4-gmf7-7g93",
+        "name": "GHSA-62p4-gmf7-7g93",
+        "description": "Pillow: Out-of-bounds read via attacker-controlled row stride on Pillow's mmap path (McIdas AREA files)",
+        "aliases": [
+          "BIT-pillow-2026-54058",
+          "CVE-2026-54058",
+          "PYSEC-2026-3493"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.3, EPSS 0.5%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-6r8x-57c9-28j4",
+        "name": "GHSA-6r8x-57c9-28j4",
+        "description": "Pillow: Heap out-of-bounds write `Image.paste()` / `Image.crop()` via signed coordinate overflow",
+        "aliases": [
+          "BIT-pillow-2026-59199",
+          "CVE-2026-59199",
+          "PYSEC-2026-3451"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 7.5, EPSS 0.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-7534-mm45-c74v",
+        "name": "GHSA-7534-mm45-c74v",
+        "description": "Buffer Overflow in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-34552",
+          "CVE-2021-34552",
+          "PYSEC-2021-331"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.3, EPSS 3.2%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-77gc-v2xv-rvvh",
+        "name": "GHSA-77gc-v2xv-rvvh",
+        "description": "Out-of-bounds Read in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-25287",
+          "CVE-2021-25287",
+          "PYSEC-2021-137"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.8, EPSS 2.9%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-7mwm-ghpf-9vrm",
+        "name": "GHSA-7mwm-ghpf-9vrm",
+        "description": "Pillow: Double free in ImagingScaleAffine on calloc failure via Image.transform",
+        "aliases": [
+          "BIT-pillow-2026-112402",
+          "CVE-2026-112402"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 0.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-7r7m-5h27-29hp",
+        "name": "GHSA-7r7m-5h27-29hp",
+        "description": "Potential infinite loop in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-28676",
+          "CVE-2021-28676",
+          "PYSEC-2021-92"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 2.5%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8843-m7mw-mxqm",
+        "name": "GHSA-8843-m7mw-mxqm",
+        "description": "Buffer overflow in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-10379",
+          "CVE-2020-10379",
+          "PYSEC-2020-78"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 1.1%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8g5g-8vmr-9782",
+        "name": "GHSA-8g5g-8vmr-9782",
+        "description": "Pillow: Heap buffer overflow in ImagingJpegDecode",
+        "aliases": [
+          "BIT-pillow-2026-112403",
+          "CVE-2026-112403"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.2, EPSS 0.9%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8ghj-p4vj-mr35",
+        "name": "GHSA-8ghj-p4vj-mr35",
+        "description": "Pillow Denial of Service vulnerability",
+        "aliases": [
+          "BIT-pillow-2023-44271",
+          "CVE-2023-44271",
+          "PYSEC-2023-227"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.ImageFont (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8v84-f9pq-wr9x",
+        "name": "GHSA-8v84-f9pq-wr9x",
+        "description": "Pillow `PcfFontFile._load_bitmaps()`: `Image.frombytes()` called without `_decompression_bomb_check()` \u2014 bomb protection bypass via PCF font loading",
+        "aliases": [
+          "BIT-pillow-2026-54059",
+          "CVE-2026-54059",
+          "PYSEC-2026-2253"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.PcfFontFile (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8vj2-vxx3-667w",
+        "name": "GHSA-8vj2-vxx3-667w",
+        "description": "Arbitrary expression injection in Pillow",
+        "aliases": [
+          "BIT-pillow-2022-22817",
+          "CVE-2022-22817",
+          "PYSEC-2022-10"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.ImageMath (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-8xjq-8fcg-g5hw",
+        "name": "GHSA-8xjq-8fcg-g5hw",
+        "description": "Out-of-bounds Write in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-25290",
+          "CVE-2021-25290",
+          "PYSEC-2021-36"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 2.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-95q3-8gr9-gm8w",
+        "name": "GHSA-95q3-8gr9-gm8w",
+        "description": "Pillow Denial of Service by Uncontrolled Resource Consumption",
+        "aliases": [
+          "BIT-pillow-2021-27923",
+          "CVE-2021-27923",
+          "PYSEC-2021-42"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 8.1.2 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches IcoFile.frame in 7 hop(s), every hop certain. Priority: fix now. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.IcoImagePlugin.IcoImageFile._open (PIL/IcoImagePlugin.py:264) -> PIL.IcoImagePlugin.IcoImageFile.load (PIL/IcoImagePlugin.py:267) -> PIL.IcoImagePlugin.IcoFile.getimage (PIL/IcoImagePlugin.py:150) -> PIL.IcoImagePlugin.IcoFile.frame (PIL/IcoImagePlugin.py:153)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-9hw9-ch79-4vh6",
+        "name": "GHSA-9hw9-ch79-4vh6",
+        "description": "Pillow: Controlled heap out-of-bounds write in Pillow `ImageCmsTransform.apply()` via output mode mismatch",
+        "aliases": [
+          "BIT-pillow-2026-59205",
+          "CVE-2026-59205",
+          "PYSEC-2026-3453"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.ImageCms (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-9j59-75qj-795w",
+        "name": "GHSA-9j59-75qj-795w",
+        "description": "Path traversal in Pillow",
+        "aliases": [
+          "BIT-pillow-2022-24303",
+          "CVE-2022-24303",
+          "PYSEC-2022-168"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function UnixViewer.show_file found; no verified call path from your code; CVSS 8.8, EPSS 2.7%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-9v9v-9qvf-h2hj",
+        "name": "GHSA-9v9v-9qvf-h2hj",
+        "description": "Pillow: Heap over-read in WMF/EMF rendering via 16-bit dimension truncation (Windows builds)",
+        "aliases": [
+          "CVE-2026-96644"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "none of the functions the fix changed matches the advisory; CVSS 7.1, EPSS 0.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-cqhg-xjhh-p8hf",
+        "name": "GHSA-cqhg-xjhh-p8hf",
+        "description": "Out-of-bounds reads in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-10177",
+          "CVE-2020-10177",
+          "PYSEC-2020-76"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 7.1, EPSS 1.5%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-f4w8-cv6p-x6r5",
+        "name": "GHSA-f4w8-cv6p-x6r5",
+        "description": "Pillow Denial of Service by Uncontrolled Resource Consumption",
+        "aliases": [
+          "BIT-pillow-2021-27921",
+          "CVE-2021-27921",
+          "PYSEC-2021-40"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "none of the functions the fix changed matches the advisory; CVSS 8.7, EPSS 3.2%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-f5g8-5qq7-938w",
+        "name": "GHSA-f5g8-5qq7-938w",
+        "description": "Pillow Out-of-bounds Read",
+        "aliases": [
+          "BIT-pillow-2020-35653",
+          "CVE-2020-35653",
+          "PYSEC-2021-69"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 8.1.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches PcxImageFile._open in 4 hop(s), every hop certain. Priority: fix now. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.PcxImagePlugin.PcxImageFile._open (PIL/PcxImagePlugin.py:49)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-g6rj-rv7j-xwp4",
+        "name": "GHSA-g6rj-rv7j-xwp4",
+        "description": "Pillow denial of service",
+        "aliases": [
+          "BIT-pillow-2021-28675",
+          "CVE-2021-28675",
+          "PYSEC-2021-139"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 8.2.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches PsdImagePlugin._layerinfo in 5 hop(s), every hop certain. Priority: fix now. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.PsdImagePlugin.PsdImageFile._open (PIL/PsdImagePlugin.py:117) -> PIL.PsdImagePlugin._layerinfo (PIL/PsdImagePlugin.py:167)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-g842-9rc4-69pw",
+        "name": "GHSA-g842-9rc4-69pw",
+        "description": "Pillow: Decompression bomb check bypass in SpiderImagePlugin.seek() leads to unbounded allocation DoS",
+        "aliases": [
+          "CVE-2026-96637"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function SpiderImageFile.seek found; no verified call path from your code; CVSS 7.1, EPSS 0.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-gg2r-wvfm-q9rx",
+        "name": "GHSA-gg2r-wvfm-q9rx",
+        "description": "Pillow: MSP RLE decoder expands a tiny file into unbounded memory",
+        "aliases": [
+          "BIT-pillow-2026-112892",
+          "CVE-2026-112892"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function MspDecoder.decode found; no verified call path from your code; CVSS 8.7, EPSS 0.5%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-hf64-x4gq-p99h",
+        "name": "GHSA-hf64-x4gq-p99h",
+        "description": "Pillow Out-of-bounds Read",
+        "aliases": [
+          "BIT-pillow-2020-35655",
+          "CVE-2020-35655",
+          "PYSEC-2021-71"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "none of the functions the fix changed matches the advisory; CVSS 6.3, EPSS 1.7%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-hj69-c76v-86wr",
+        "name": "GHSA-hj69-c76v-86wr",
+        "description": "Out-of-bounds Read in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-5313",
+          "CVE-2020-5313",
+          "PYSEC-2020-84"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.3, EPSS 2.8%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-j7hp-h8jx-5ppr",
+        "name": "GHSA-j7hp-h8jx-5ppr",
+        "description": "libwebp: OOB write in BuildHuffmanTable",
+        "aliases": [
+          "A-299477569",
+          "ASB-A-299477569",
+          "CVE-2023-4863",
+          "CVE-2023-5129",
+          "PYSEC-2026-1794",
+          "RUSTSEC-2023-0060",
+          "RUSTSEC-2023-0061",
+          "PYSEC-2023-175"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "known exploited in the wild (CISA KEV): review first; no Python fix code to check against; CVSS 8.8, EPSS 100.0%, in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-j7mj-748x-7p78",
+        "name": "GHSA-j7mj-748x-7p78",
+        "description": "DOS attack in Pillow when processing specially crafted image files",
+        "aliases": [
+          "CVE-2019-16865",
+          "PYSEC-2019-110"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 3.1%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-m2vv-5vj5-2hm7",
+        "name": "GHSA-m2vv-5vj5-2hm7",
+        "description": "Pillow vulnerable to Data Amplification attack.",
+        "aliases": [
+          "BIT-pillow-2022-45198",
+          "CVE-2022-45198",
+          "PYSEC-2022-42979"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 9.2.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches GifImageFile._seek in 5 hop(s), every hop certain. Priority: fix now. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.GifImagePlugin.GifImageFile._open (PIL/GifImagePlugin.py:88) -> PIL.GifImagePlugin.GifImageFile._seek (PIL/GifImagePlugin.py:133)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-mvg9-xffr-p774",
+        "name": "GHSA-mvg9-xffr-p774",
+        "description": "Out of bounds read in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-25291",
+          "CVE-2021-25291",
+          "PYSEC-2021-37"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 1.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-p43w-g3c5-g5mq",
+        "name": "GHSA-p43w-g3c5-g5mq",
+        "description": "Out of bounds read in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-25293",
+          "CVE-2021-25293",
+          "PYSEC-2021-39"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.7, EPSS 1.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-p49h-hjvm-jg3h",
+        "name": "GHSA-p49h-hjvm-jg3h",
+        "description": "PCX P mode buffer overflow in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-5312",
+          "CVE-2020-5312",
+          "PYSEC-2020-83"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.3, EPSS 3.7%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-p8hx-v2p6-rp84",
+        "name": "GHSA-p8hx-v2p6-rp84",
+        "description": "Pillow: Decompression-bomb protection bypass via multi-frame seek() in MPO and DCX (MpoImageFile.seek / DcxImageFile.seek)",
+        "aliases": [
+          "CVE-2026-96636"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 13.0.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches DcxImageFile.seek in 5 hop(s), every hop certain. Priority: fix soon. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.DcxImagePlugin.DcxImageFile._open (PIL/DcxImagePlugin.py:63) -> PIL.DcxImagePlugin.DcxImageFile.seek (PIL/DcxImagePlugin.py:73)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-pchr-8j38-3x4p",
+        "name": "GHSA-pchr-8j38-3x4p",
+        "description": "Pillow: TIFF encoder ColorMap plane-size mismatch causes a heap out-of-bounds read",
+        "aliases": [
+          "BIT-pillow-2026-112896",
+          "CVE-2026-112896"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function TiffImagePlugin._save found; no verified call path from your code; CVSS 8.8, EPSS 0.5%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-phj9-mv4w-65pm",
+        "name": "GHSA-phj9-mv4w-65pm",
+        "description": "Pillow `GdImageFile._open()`: image dimensions accepted without `_decompression_bomb_check()`",
+        "aliases": [
+          "BIT-pillow-2026-55380",
+          "CVE-2026-55380",
+          "PYSEC-2026-2256"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "vulnerable module never loaded by your code: PIL.GdImageFile (nothing your code loads imports it, names it in a string, or loads it through a framework rule)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-pw3c-h7wp-cvhx",
+        "name": "GHSA-pw3c-h7wp-cvhx",
+        "description": "Improper Initialization in Pillow",
+        "aliases": [
+          "BIT-pillow-2022-22815",
+          "CVE-2022-22815",
+          "PYSEC-2022-8"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 6.9, EPSS 2.6%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-q5hq-fp76-qmrc",
+        "name": "GHSA-q5hq-fp76-qmrc",
+        "description": "Uncontrolled Resource Consumption in Pillow",
+        "aliases": [
+          "BIT-pillow-2021-28677",
+          "CVE-2021-28677",
+          "PYSEC-2021-93"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 8.2.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches PSFile.readline in 5 hop(s), every hop certain. Priority: fix now. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.EpsImagePlugin.EpsImageFile._open (PIL/EpsImagePlugin.py:230) -> PIL.EpsImagePlugin.PSFile.readline (PIL/EpsImagePlugin.py:169)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-r73j-pqj5-w3x7",
+        "name": "GHSA-r73j-pqj5-w3x7",
+        "description": "Pillow has a PDF Parsing Trailer Infinite Loop (DoS)",
+        "aliases": [
+          "BIT-pillow-2026-42310",
+          "CVE-2026-42310",
+          "PYSEC-2026-2874"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 5.1, EPSS 0.2%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-r7rm-8j6h-r933",
+        "name": "GHSA-r7rm-8j6h-r933",
+        "description": "Buffer Copy without Checking Size of Input in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-5311",
+          "CVE-2020-5311",
+          "PYSEC-2020-82"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.3, EPSS 4.2%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-rwv7-3v45-hg29",
+        "name": "GHSA-rwv7-3v45-hg29",
+        "description": "Pillow Out-of-bounds Read vulnerability",
+        "aliases": [
+          "BIT-pillow-2021-25288",
+          "CVE-2021-25288",
+          "PYSEC-2021-138"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.8, EPSS 2.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-vcqg-3p29-xw73",
+        "name": "GHSA-vcqg-3p29-xw73",
+        "description": "Integer overflow in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-5310",
+          "CVE-2020-5310",
+          "PYSEC-2020-81"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 9.3, EPSS 2.0%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-vj42-xq3r-hr3r",
+        "name": "GHSA-vj42-xq3r-hr3r",
+        "description": "Out-of-bounds reads in Pillow",
+        "aliases": [
+          "BIT-pillow-2020-10994",
+          "CVE-2020-10994",
+          "PYSEC-2020-79"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 7.1, EPSS 1.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-vqcj-wrf2-7v73",
+        "name": "GHSA-vqcj-wrf2-7v73",
+        "description": "Pillow Out-of-bounds Write",
+        "aliases": [
+          "BIT-pillow-2020-35654",
+          "CVE-2020-35654",
+          "PYSEC-2021-70"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 8.6, EPSS 1.9%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-vx6w-vv9f-6gvg",
+        "name": "GHSA-vx6w-vv9f-6gvg",
+        "description": "Pillow: EPS load(scale) lets Ghostscript render past the decompression bomb limit",
+        "aliases": [
+          "CVE-2026-112899"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function EpsImagePlugin.Ghostscript found; no verified call path from your code; CVSS 6.9, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-w889-685w-c8fh",
+        "name": "GHSA-w889-685w-c8fh",
+        "description": "Pillow: Argument Injection in Ghostscript call, potentially leading into RCE",
+        "aliases": [
+          "BIT-pillow-2026-112900",
+          "CVE-2026-112900"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function EpsImagePlugin.Ghostscript found; no verified call path from your code; CVSS 9.2, EPSS 1.3%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-wjx4-4jcj-g98j",
+        "name": "GHSA-wjx4-4jcj-g98j",
+        "description": "Pillow has an integer overflow when processing fonts",
+        "aliases": [
+          "BIT-pillow-2026-42308",
+          "CVE-2026-42308",
+          "PYSEC-2026-165"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 5.1, EPSS 0.1%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-xgh8-jp6q-p5x8",
+        "name": "GHSA-xgh8-jp6q-p5x8",
+        "description": "Pillow: ReDoS in XbmImagePlugin: 512-byte file stalls Image.open() for minutes",
+        "aliases": [
+          "BIT-pillow-2026-112901",
+          "CVE-2026-112901"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 13.0.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches XbmImageFile._open in 4 hop(s), every hop certain. Priority: fix soon. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.XbmImagePlugin.XbmImageFile._open (PIL/XbmImagePlugin.py:51)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-xj96-63gp-2gmr",
+        "name": "GHSA-xj96-63gp-2gmr",
+        "description": "Pillow: Heap out-of-bounds write in `ImageFilter.RankFilter` via integer overflow in `ImagingExpand`",
+        "aliases": [
+          "BIT-pillow-2026-59197",
+          "CVE-2026-59197",
+          "PYSEC-2026-3454"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "vulnerable function RankFilter.__init__ found; no verified call path from your code; CVSS 8.2, EPSS 0.4%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-xrcv-f9gm-v42c",
+        "name": "GHSA-xrcv-f9gm-v42c",
+        "description": "Out-of-bounds Read in Pillow",
+        "aliases": [
+          "BIT-pillow-2022-22816",
+          "CVE-2022-22816",
+          "PYSEC-2022-9"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; CVSS 6.9, EPSS 1.9%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-xvh5-g6gv-559v",
+        "name": "GHSA-xvh5-g6gv-559v",
+        "description": " Pillow: Memory disclosure and segfault in libtiff encoder via crafted TIFF tags",
+        "aliases": [
+          "CVE-2026-112902"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "none of the functions the fix changed matches the advisory; CVSS 8.8, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/PYSEC-2021-317",
+        "name": "PYSEC-2021-317",
+        "aliases": [
+          "BIT-pillow-2021-23437",
+          "CVE-2021-23437",
+          "GHSA-98vv-pw6r-q6q4",
+          "SNYK-PYTHON-PILLOW-1319443"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 8.3.2 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches ImageColor.getrgb in 11 hop(s), every hop certain. Priority: fix soon. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.IcoImagePlugin.IcoImageFile._open (PIL/IcoImagePlugin.py:264) -> PIL.IcoImagePlugin.IcoImageFile.load (PIL/IcoImagePlugin.py:267) -> PIL.IcoImagePlugin.IcoFile.getimage (PIL/IcoImagePlugin.py:150) -> PIL.IcoImagePlugin.IcoFile.frame (PIL/IcoImagePlugin.py:196) -> PIL.Image.frombuffer (PIL/Image.py:2384) -> PIL.Image.new (PIL/Image.py:2285) -> PIL.ImageColor.getcolor (PIL/ImageColor.py:128) -> PIL.ImageColor.getrgb (PIL/ImageColor.py:24)"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/PYSEC-2021-38",
+        "name": "PYSEC-2021-38",
+        "aliases": [
+          "BIT-pillow-2021-25292",
+          "CVE-2021-25292",
+          "GHSA-9hx2-hgq2-2g4f"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; disputed: the reviewed record GHSA-9hx2-hgq2-2g4f says this version is not affected; severity unknown, EPSS 1.7%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/PYSEC-2021-94",
+        "name": "PYSEC-2021-94",
+        "aliases": [
+          "BIT-pillow-2021-28678",
+          "CVE-2021-28678",
+          "GHSA-hjfx-8p6c-g7gx"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "under_investigation",
+      "status_notes": "no Python fix code to check against; disputed: the reviewed record GHSA-hjfx-8p6c-g7gx says this version is not affected; severity unknown, EPSS 0.7%, not in CISA KEV"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/PYSEC-2022-42980",
+        "name": "PYSEC-2022-42980",
+        "aliases": [
+          "BIT-pillow-2022-45199",
+          "CVE-2022-45199",
+          "GHSA-q4mp-jvh2-76fj"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/henrymbuguak/shopping-cart-using-django-2.0-and-python-3.6@1aa90f67f4559a36d8049d8a2d3fe622791ee95c",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/pillow@4.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "action_statement": "Upgrade pillow from 4.3.0 to 9.3.0 or later.",
+      "status_notes": "reachable: shop/admin.py:20 reaches TiffImageFile._setup in 6 hop(s), every hop certain. Priority: fix soon. Call path: shop.admin (shop/admin.py:20) -> django.forms.fields.ImageField.to_python (django/forms/fields.py:626) -> PIL.Image.open (PIL/Image.py:2549) -> PIL.ImageFile.ImageFile.__init__ (PIL/ImageFile.py:102) -> PIL.TiffImagePlugin.TiffImageFile._open (PIL/TiffImagePlugin.py:950) -> PIL.TiffImagePlugin.TiffImageFile._seek (PIL/TiffImagePlugin.py:1017) -> PIL.TiffImagePlugin.TiffImageFile._setup (PIL/TiffImagePlugin.py:1148)"
+    }
+  ]
+}
