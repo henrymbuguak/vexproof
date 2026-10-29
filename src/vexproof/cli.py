@@ -18,6 +18,8 @@ from vexproof.config import Settings
 from vexproof.domain import Finding, Level, ServiceProfile, Verdict
 from vexproof.domain.profile import load_service_profile
 from vexproof.errors import VexproofError
+from vexproof.evaluate.markdown import render_markdown, summary_rows
+from vexproof.evaluate.score import evaluate, load_observation, load_record
 from vexproof.ingest.repo import checkout
 from vexproof.intel.cache import Cache
 from vexproof.intel.http import JsonHttp, make_client
@@ -223,10 +225,37 @@ def _model_config(
     )
 
 
-def _payload(result: ScanResult) -> dict[str, object]:
+def _usage(stack: ModelStack | None, settings: Settings) -> dict[str, object] | None:
+    """Model use for the whole scan, priced as if nothing had been replayed from recordings."""
+    if stack is None or not stack.budget.report.total.calls:
+        return None
+    report = stack.budget.report
+    total = report.total
+    return {
+        "label": stack.label,
+        "calls": total.calls,
+        "replayed": total.replayed,
+        "input_tokens": total.input_tokens,
+        "output_tokens": total.output_tokens,
+        "cost_usd": report.cost_usd(settings.price_input_per_m, settings.price_output_per_m),
+        "by_purpose": {k: v.calls for k, v in sorted(report.by_purpose.items())},
+    }
+
+
+def _payload(result: ScanResult, usage: dict[str, object] | None = None) -> dict[str, object]:
+    closure = result.closure
     return {
         "source": result.source,
         "commit": result.commit,
+        "timings_s": {k: round(v, 2) for k, v in result.timings_s.items()},
+        "model": usage,
+        "closure": None
+        if closure is None
+        else {
+            "reached": list(closure.reached),
+            "unreached": list(closure.unreached),
+            "blockers": list(closure.blockers),
+        },
         "summary": {
             "alerts": len(result.findings),
             "levels": level_counts(result.findings),
@@ -339,7 +368,8 @@ def scan_command(
     if stack is not None:
         _render_usage(stack, settings)
     if json_out:
-        json_out.write_text(json.dumps(_payload(result), indent=2) + "\n", encoding="utf-8")
+        payload = _payload(result, _usage(stack, settings))
+        json_out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         console.print(f"wrote {escape(str(json_out))}")
     context = _context(result.source, result.commit, result.findings, service_profile)
     _write_reports(context, html_out, vex_out)
@@ -631,6 +661,52 @@ def _render_gold(report: GoldReport) -> None:
     )
     verdict = "[green]GO[/green]" if report.go else "[red]NO-GO[/red]"
     console.print(f"verdict: {verdict}")
+
+
+@app.command("eval")
+def eval_command(
+    findings_json: Annotated[Path, typer.Argument(help="JSON written by `vexproof scan --json`")],
+    observed: Annotated[
+        Path, typer.Option(help="Observation from eval/dynamic/observe.py (the oracle)")
+    ],
+    gold: Annotated[
+        Path | None, typer.Option(help="Gold labels for function picks (optional)")
+    ] = None,
+    markdown: Annotated[Path | None, typer.Option(help="Write the evaluation here")] = None,
+) -> None:
+    """Check a scan against a run of the real project: wrong clears, confirmed paths, cost."""
+    try:
+        record = load_record(json.loads(findings_json.read_text(encoding="utf-8")))
+        observation = load_observation(json.loads(observed.read_text(encoding="utf-8")))
+        cases = load_gold(gold) if gold else ()
+    except (OSError, ValueError) as exc:
+        console.print(f"[red]error:[/red] cannot read input: {escape(str(exc))}")
+        raise typer.Exit(code=2) from exc
+    except VexproofError as exc:
+        console.print(f"[red]error:[/red] {escape(str(exc))}")
+        raise typer.Exit(code=2) from exc
+    result = evaluate(record, observation, cases)
+    table = Table(title=f"Evaluation against {escape(observation.workload)}", show_header=False)
+    table.add_column("Measure")
+    table.add_column("Result")
+    for measure, value in summary_rows(result):
+        table.add_row(escape(measure), escape(value))
+    console.print(table)
+    for check in result.falsified:
+        loaded = ", ".join(check.loaded)
+        console.print(
+            f"[red]wrong clear[/red] {escape(check.finding.advisory.id)}: {escape(loaded)}"
+        )
+    for module in result.closure.missed if result.closure else ():
+        console.print(f"[red]missing from the closure[/red] {escape(module)}")
+    if markdown:
+        markdown.write_text(render_markdown(result), encoding="utf-8")
+        console.print(f"wrote {escape(str(markdown))}")
+    if result.sound:
+        console.print("verdict: [green]sound[/green] (no clear contradicted by the run)")
+    else:
+        console.print("verdict: [red]UNSOUND[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("version")

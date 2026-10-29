@@ -3,7 +3,7 @@
 Stages: ingest -> intel -> analyze (Level 0 import closure, fix-commit shortlists)
 -> select (Muse Spark picks the vulnerable function; a verifier checks it)
 -> prove (module-level clears; call paths found by search, reviewed by Muse Spark, verified).
-Later chapters add prioritization and reporting.
+Reports (report/) and evaluation (evaluate/) read the result; they never change it.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from vexproof.sources.store import SourceStore
 from vexproof.static.closure import reachability
 from vexproof.static.codeindex import CodeIndex
 from vexproof.static.levels import NOT_IN_EXECUTE_PATH, level0
-from vexproof.static.modules import module_reachability
+from vexproof.static.modules import ModuleReach, module_reachability
 from vexproof.static.project import scan_project
 from vexproof.static.shortlist import FixSource, build_shortlist
 from vexproof.symbols.apply import apply_outcome
@@ -73,6 +73,24 @@ class ScanResult:
     packages: tuple[Package, ...]
     findings: tuple[Finding, ...]
     timings_s: Mapping[str, float] = field(default_factory=dict)
+    closure: ModuleClosure | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleClosure:
+    """Which modules the scan says your code can load; recorded so it can be checked later."""
+
+    reached: tuple[str, ...]
+    unreached: tuple[str, ...]
+    blockers: tuple[str, ...]
+
+    @classmethod
+    def of(cls, reach: ModuleReach) -> ModuleClosure:
+        return cls(
+            reached=tuple(sorted(reach.reached)),
+            unreached=tuple(sorted(set(reach.modules) - set(reach.reached))),
+            blockers=tuple(reach.blockers),
+        )
 
 
 def collect_packages(
@@ -216,6 +234,11 @@ def level_counts(findings: Sequence[Finding]) -> dict[str, int]:
     return counts
 
 
+def module_closure(repo: Path, packages: Sequence[Package], analyzers: Analyzers) -> ModuleReach:
+    trees, failures = analyzers.store.get_many(packages, workers=analyzers.workers)
+    return module_reachability(repo, trees, failures)
+
+
 def prove(
     repo: Path,
     packages: Sequence[Package],
@@ -224,10 +247,11 @@ def prove(
     model: ModelStack | None = None,
     *,
     trace: bool = True,
+    reach: ModuleReach | None = None,
 ) -> tuple[Finding, ...]:
     """Clear alerts whose vulnerable module is never loaded; find call paths to verified picks."""
-    trees, failures = analyzers.store.get_many(packages, workers=analyzers.workers)
-    reach = module_reachability(repo, trees, failures)
+    if reach is None:
+        reach = module_closure(repo, packages, analyzers)
     cleared = tuple(clear_by_module(f, reach) for f in findings)
     if not trace or model is None:
         return cleared
@@ -322,9 +346,12 @@ def scan(
         timings["select"] = time.perf_counter() - started
         log.info("select_done", **selection_counts(findings))
 
+    closure: ModuleClosure | None = None
     if analyzers is not None and findings:
         started = time.perf_counter()
-        findings = prove(repo, packages, findings, analyzers, model, trace=trace)
+        reach = module_closure(repo, packages, analyzers)
+        closure = ModuleClosure.of(reach)
+        findings = prove(repo, packages, findings, analyzers, model, trace=trace, reach=reach)
         timings["prove"] = time.perf_counter() - started
         log.info("prove_done", **verdict_counts(findings))
 
@@ -334,4 +361,5 @@ def scan(
         packages=packages,
         findings=findings,
         timings_s=timings,
+        closure=closure,
     )

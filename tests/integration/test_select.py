@@ -30,6 +30,7 @@ from vexproof.pipeline import (
     select_symbols,
     selection_counts,
 )
+from vexproof.static.modules import ModuleReach
 
 runner = CliRunner()
 
@@ -61,9 +62,15 @@ def _no_prove(
     model: ModelStack | None = None,
     *,
     trace: bool = True,
+    reach: ModuleReach | None = None,
 ) -> tuple[Finding, ...]:
     """The prove stage has its own tests; here it would need real package sources."""
     return tuple(findings)
+
+
+def _skip_prove(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
+    monkeypatch.setattr("vexproof.pipeline.module_closure", lambda *_: ModuleReach())
 
 
 def _answers(request: ModelRequest) -> Reply:
@@ -111,7 +118,7 @@ def test_scan_runs_the_select_stage(
         return (_variant("GHSA-pick"),)
 
     monkeypatch.setattr("vexproof.pipeline.analyze", fake_analyze)
-    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
+    _skip_prove(monkeypatch)
     stack, _ = scripted_stack(_answers, tmp_path)
     result = scan(
         REPO,
@@ -157,7 +164,7 @@ def test_cli_scan_with_model(
     monkeypatch.setenv("VEXPROOF_PRICE_INPUT_PER_M", "1")
     monkeypatch.setenv("VEXPROOF_PRICE_OUTPUT_PER_M", "2")
     monkeypatch.setattr("vexproof.pipeline.analyze", lambda *a: (_variant("GHSA-pick"),))
-    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
+    _skip_prove(monkeypatch)
     out = tmp_path / "findings.json"
     result = runner.invoke(
         cli.app, ["scan", str(REPO), "--sbom", str(SBOM), "--json", str(out)], terminal_width=200
@@ -266,6 +273,7 @@ def test_local_server_works_without_a_key(
     fake_api: list[ModelConfig],
     monkeypatch: pytest.MonkeyPatch,
     mocked_services: respx.MockRouter,
+    tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("MODEL_API_KEY", "")
     monkeypatch.setenv("VEXPROOF_MODEL_BASE_URL", "http://localhost:11434/v1")
@@ -287,10 +295,18 @@ def test_local_server_works_without_a_key(
     monkeypatch.setenv("VEXPROOF_KEV_URL", KEV)
     monkeypatch.setenv("VEXPROOF_EPSS_URL", EPSS)
     monkeypatch.setattr("vexproof.pipeline.analyze", lambda *a: (_variant("GHSA-pick"),))
-    monkeypatch.setattr("vexproof.pipeline.prove", _no_prove)
-    scanned = runner.invoke(cli.app, ["scan", str(REPO), "--sbom", str(SBOM)], terminal_width=200)
+    _skip_prove(monkeypatch)
+    out = tmp_path / "findings.json"
+    scanned = runner.invoke(
+        cli.app, ["scan", str(REPO), "--sbom", str(SBOM), "--json", str(out)], terminal_width=200
+    )
     assert scanned.exit_code == 0, scanned.output
     assert "1 verified picks" in _flat(scanned.output)
+    payload = json.loads(out.read_text())
+    assert payload["model"]["calls"] == 1  # recorded so evaluation can report cost per alert
+    assert payload["model"]["by_purpose"] == {"symbol_pick": 1}
+    assert payload["closure"] == {"reached": [], "unreached": [], "blockers": []}
+    assert set(payload["timings_s"]) >= {"ingest", "intel", "select", "prove"}
 
 
 def test_check_model_without_key() -> None:
