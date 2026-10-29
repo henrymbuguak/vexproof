@@ -170,3 +170,35 @@ def test_applying_reviewed_and_missing_paths(loose_index: CodeIndex, tmp_path: P
     )
     bare = finding.model_copy(update={"evidence": None})
     assert apply_trace(bare, FRAME, unreviewed, None) is bare
+
+
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [
+        ({"action": "accept"}, ("accept", [], [], "", "")),  # empty fields left out
+        (
+            {"name": "search", "arguments": {"avoid": "x.y", "through": None}},
+            ("search", ["x.y"], [], "", ""),
+        ),  # tool-call shape, a string for a list
+        ({"TraceAction": {"tool": "Give Up", "explanation": "no"}}, ("give_up", [], [], "", "no")),
+        ({"action": "callers", "target": "a.b", "extra": 1}, ("callers", [], [], "a.b", "")),
+    ],
+)
+def test_review_replies_in_other_shapes(
+    reply: dict[str, object], expected: tuple[object, ...]
+) -> None:
+    from vexproof.evidence.trace import TraceAction
+
+    act = TraceAction.model_validate(reply)
+    assert (act.action, act.avoid, act.through, act.symbol, act.reason) == expected
+
+
+def test_unknown_actions_still_fail_and_say_what_came_back(tmp_path: Path) -> None:
+    from vexproof.evidence.trace import TraceAction
+    from vexproof.llm.types import ModelOutputInvalidError
+
+    stack, _ = scripted_stack(
+        [{"action": "dance"}, {"action": "dance", "reason": "again"}], tmp_path
+    )
+    with pytest.raises(ModelOutputInvalidError, match=r"the reply began '\{\"action\": \"dance\""):
+        stack.caller.ask(TraceAction, purpose="t", prompt_version="t.v1", system="s", user="u")

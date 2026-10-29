@@ -72,15 +72,12 @@ def test_types_carried_along_the_path(index: CodeIndex) -> None:
         ([Step("PIL.Image.open", 23), Step(FRAME, 8)], "project's own code"),
         ([Step(THUMB, 11), Step("no.such.thing", 1), Step(FRAME, 8)], "not a known"),
         ([Step(THUMB, 11), Step("PIL.ImageMath.eval", 1), Step(FRAME, 8)], "never loads"),
-        ([Step("shop.views.thumbnail", 3), Step("PIL.Image.open", 23)], "outside"),
         ([Step("shop.views.color", 17), Step(FRAME, 8)], "does not call or refer"),
         ([Step("shop.views.process", 21), Step("shop.views.process", 21), Step(FRAME, 8)], "twice"),
     ],
 )  # fmt: skip
 def test_rejections(index: CodeIndex, steps: list[Step], reason: str) -> None:
-    target = steps[-1].symbol if reason in {"outside", "does not call or refer"} else FRAME
-    if reason == "outside":
-        target = "PIL.Image.open"
+    target = steps[-1].symbol if reason == "does not call or refer" else FRAME
     result = verify_path(steps, target, index)
     assert isinstance(result, PathRejected)
     assert any(reason in r for r in result.reasons), result.reasons
@@ -129,3 +126,52 @@ def test_find_path_searches_again_around_a_type_conflict(index: CodeIndex) -> No
     result = find_path(other, index, {}, through=["shop.views.upload"])
     assert result.path is None  # the only route from upload has the wrong self type
     assert "when self is a shop.forms.UploadForm" in result.rejected[0]
+
+
+def test_a_wrong_line_is_corrected_when_another_line_works(index: CodeIndex) -> None:
+    result = verify_path([Step(THUMB, 3), Step("PIL.Image.open", 23)], "PIL.Image.open", index)
+    assert isinstance(result, VerifiedPath)
+    assert result.hops[0].line == 11  # where thumbnail actually calls Image.open
+
+
+SETTINGS_LIBRARY = {
+    "PIL/Hooks.py": """\
+class Mixin:
+    def __call__(self, request):
+        return self.process_request(request)
+
+
+class First(Mixin):
+    def process_request(self, request):
+        return request
+
+
+class Common(Mixin):
+    def process_request(self, request):
+        return self.slash(request)
+
+    def slash(self, request):
+        return request
+""",
+}
+SETTINGS = 'HOOKS = [\n    "PIL.Hooks.First",\n    "PIL.Hooks.Common",\n]\n'
+
+
+def test_classes_named_in_settings(tmp_path: Path) -> None:
+    from tests.codebase import LIBRARY, PROJECT
+
+    _, index, _ = build(
+        tmp_path,
+        library={**LIBRARY, **SETTINGS_LIBRARY},
+        project={**PROJECT, "shop/settings.py": SETTINGS},
+    )
+    slash = index.scope("PIL.Hooks.Common.slash")
+    assert slash is not None
+    result = find_path(slash, index, {})
+    assert result.path is not None
+    assert [(h.symbol, h.line, h.via, h.certain) for h in result.path.hops] == [
+        ("shop.settings", 3, "start", True),  # the line naming Common, not First on line 2
+        ("PIL.Hooks.Mixin.__call__", 3, "string", False),  # called by convention: reviewed
+        ("PIL.Hooks.Common.process_request", 13, "call", True),
+        ("PIL.Hooks.Common.slash", 15, "call", True),
+    ]

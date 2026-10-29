@@ -94,7 +94,8 @@ class StructuredCaller:
                 return _parse(second.text, schema)
             except (ValueError, ValidationError) as exc:
                 raise ModelOutputInvalidError(
-                    f"{purpose}: reply did not match {schema.__name__}: {_brief(exc)}"
+                    f"{purpose}: reply did not match {schema.__name__}: {_brief(exc)}; "
+                    f"the reply began {second.text.strip()[:160]!r}"
                 ) from exc
 
 

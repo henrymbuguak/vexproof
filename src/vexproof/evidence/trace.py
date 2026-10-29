@@ -19,7 +19,7 @@ import threading
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vexproof.evidence.paths import SearchResult, Step, VerifiedPath, find_path, verify_path
 from vexproof.llm.structured import StructuredCaller
@@ -36,13 +36,75 @@ _LIST = 25
 
 
 class TraceAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """One review step. Parsing is lenient about shape, never about meaning.
+
+    Models without enforced schemas often leave out fields they consider empty, or wrap the
+    arguments the way tool calls look (`{"name": "search", "arguments": {...}}`). Those shapes are
+    normalised; an unknown action is still an error.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     action: Literal["accept", "search", "callers", "source", "give_up"]
-    avoid: list[str] = Field(description="search: qualified names the path must not use")
-    through: list[str] = Field(description="search: qualified names to pass through, in order")
-    symbol: str = Field(description="callers/source: a qualified name; otherwise empty")
-    reason: str = Field(description="one or two sentences; for accept, why each POSSIBLE hop holds")
+    avoid: list[str] = Field(
+        default_factory=list, description="search: qualified names the path must not use"
+    )
+    through: list[str] = Field(
+        default_factory=list, description="search: qualified names to pass through, in order"
+    )
+    symbol: str = Field(default="", description="callers/source: a qualified name; else empty")
+    reason: str = Field(
+        default="", description="one or two sentences; for accept, why each POSSIBLE hop holds"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalise(cls, data: object) -> object:
+        return _tidy(_unwrap(data)) if isinstance(data, dict) else data
+
+
+_WRAPPERS = ("arguments", "args", "parameters", "params", "input")
+_ALIASES = {
+    "action": ("tool", "name", "next_action", "type", "step"),
+    "symbol": ("target", "function", "qualname", "qualified_name"),
+    "reason": ("rationale", "explanation", "why"),
+}
+
+
+def _unwrap(data: dict[str, object]) -> dict[str, object]:
+    """`{"TraceAction": {...}}` and `{"name": ..., "arguments": {...}}` -> one flat object."""
+    if "action" not in data and len(data) == 1:
+        (only,) = data.values()
+        if isinstance(only, dict):
+            data = only
+    flat = dict(data)
+    for key in _WRAPPERS:
+        inner = flat.pop(key, None)
+        if isinstance(inner, dict):
+            flat = {**inner, **flat}
+    for field, aliases in _ALIASES.items():
+        if field not in flat:
+            found = next((flat[a] for a in aliases if isinstance(flat.get(a), str)), None)
+            if found is not None:
+                flat[field] = found
+    return flat
+
+
+def _tidy(data: dict[str, object]) -> dict[str, object]:
+    """ "Give Up" -> "give_up"; a string for a list -> a list; null -> the default."""
+    action = data.get("action")
+    if isinstance(action, str):
+        data["action"] = action.strip().lower().replace(" ", "_").replace("-", "_")
+    for field in ("avoid", "through"):
+        value = data.get(field)
+        if isinstance(value, str):
+            data[field] = [value] if value else []
+        elif value is None:
+            data.pop(field, None)
+    for field in ("symbol", "reason"):
+        if data.get(field) is None:
+            data.pop(field, None)
+    return data
 
 
 @dataclass(frozen=True)

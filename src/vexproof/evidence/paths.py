@@ -174,6 +174,9 @@ def _next_self_type(
     if callee.name in {"__init__", "__new__"} and site.kind == "call" and site.recv != "super":
         built = index.resolve(site.ref) if site.ref else ""
         return built if index.is_class(built) else None  # instantiating that class
+    if site.kind == "string" and callee.name in {"__init__", "__call__"}:
+        named = index.resolve(site.name)
+        return named if index.is_class(named) else None  # the class a setting names
     if site.recv in {"self", "super"}:
         return self_type
     if site.recv.startswith("@"):
@@ -182,7 +185,7 @@ def _next_self_type(
     return None
 
 
-def verify_path(  # noqa: PLR0912 - one branch per check, in the order the docstring lists them
+def verify_path(
     steps: Sequence[Step], target: str, index: CodeIndex
 ) -> VerifiedPath | PathRejected:
     reasons: list[str] = []
@@ -210,22 +213,15 @@ def verify_path(  # noqa: PLR0912 - one branch per check, in the order the docst
         return PathRejected(
             (f"the path must start in the project's own code, not {scopes[0].qualname}",)
         )
-    hops: list[_Hop] = [_Hop("start", True, None)]
-    self_type: str | None = None
-    typed_at: str | None = None  # the step that fixed self_type
-    for i in range(len(scopes) - 1):
-        result = _edge(scopes[i], steps[i].line, scopes[i + 1], index, self_type)
-        if isinstance(result, str):
-            return PathRejected((result,), blame=typed_at or scopes[i].qualname)
-        if result.self_type != self_type:
-            typed_at = scopes[i].qualname if result.self_type else None
-        self_type = result.self_type
-        hops.append(result)
+    walked = _walk(scopes, steps, index)
+    if isinstance(walked, PathRejected):
+        return walked
+    lines, hops = walked
     return VerifiedPath(
         tuple(
             Hop(
                 file=index.reach.modules[scope.module].rel,
-                line=steps[i].line if i < len(scopes) - 1 else scope.start,
+                line=lines[i] if i < len(scopes) - 1 else scope.start,
                 symbol=scope.qualname,
                 via=hops[i].via,
                 certain=hops[i].certain,
@@ -233,6 +229,65 @@ def verify_path(  # noqa: PLR0912 - one branch per check, in the order the docst
             for i, scope in enumerate(scopes)
         )
     )
+
+
+MAX_ALTERNATIVES = 12  # other lines tried per step
+MAX_ATTEMPTS = 400  # edge checks per verification
+
+
+def _walk(
+    scopes: list[Scope], steps: Sequence[Step], index: CodeIndex
+) -> tuple[list[int], list[_Hop]] | PathRejected:
+    """Check every hop, trying other lines of a step when the cited one leads to a type conflict.
+
+    A step can mention the next one on several lines (seven middleware classes in one settings
+    list); the line decides the class of `self` further on. The cited line is tried first.
+    """
+    budget = [MAX_ATTEMPTS]
+    first_failure: list[PathRejected] = []
+
+    def alternatives(i: int) -> list[int]:
+        cited = steps[i].line
+        others = sorted(
+            {
+                site.line
+                for site in scopes[i].sites
+                if site.line != cited and index.edge(scopes[i + 1], site, scopes[i]) is not None
+            }
+        )
+        return [cited, *others[:MAX_ALTERNATIVES]]
+
+    def go(
+        i: int, self_type: str | None, typed_at: str | None
+    ) -> tuple[list[int], list[_Hop]] | None:
+        if i == len(scopes) - 1:
+            return [], [_Hop("start", True, None)]
+        for line in alternatives(i):
+            if budget[0] <= 0:
+                return None
+            budget[0] -= 1
+            result = _edge(scopes[i], line, scopes[i + 1], index, self_type)
+            if isinstance(result, str):
+                if not first_failure:
+                    first_failure.append(
+                        PathRejected((result,), blame=typed_at or scopes[i].qualname)
+                    )
+                continue
+            changed = result.self_type != self_type
+            rest = go(
+                i + 1,
+                result.self_type,
+                (scopes[i].qualname if result.self_type else None) if changed else typed_at,
+            )
+            if rest is not None:
+                lines, hops = rest
+                return [line, *lines], [hops[0], result, *hops[1:]]
+        return None
+
+    found = go(0, None, None)
+    if found is None:
+        return first_failure[0] if first_failure else PathRejected(("no hop could be checked",))
+    return found
 
 
 # -- search -------------------------------------------------------------------------------------

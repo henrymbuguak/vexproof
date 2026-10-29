@@ -46,6 +46,7 @@ BARE = "-"
 LITERAL = "#literal"
 _LITERALS = (ast.Constant, ast.JoinedStr, ast.List, ast.Tuple, ast.Dict, ast.Set, ast.BinOp)
 _CONSTRUCTORS = frozenset({"__init__", "__new__"})
+_FRAMEWORK_ENTRIES = frozenset({"__init__", "__call__"})
 _MAX_STRING = 200
 REGISTRATIONS = frozenset(
     {"register_open", "register_save", "register_save_all", "register_decoder", "register_encoder"}
@@ -581,12 +582,30 @@ class CodeIndex:
         if target.kind == "module":
             return None  # module-level code runs on import; module reach covers it
         if site.kind == "string":
-            return "certain" if site.name == target.qualname else None
+            return self._string_edge(target, site)
         if target.cls is None:
             return self._function_edge(target, site)
         if target.name in _CONSTRUCTORS:
             return self._constructor_edge(target, site, caller)
         return self._method_edge(target, site, caller)
+
+    def _string_edge(self, target: Scope, site: Site) -> Certainty | None:
+        """A dotted string naming the target, or naming a class the framework builds.
+
+        Frameworks instantiate the classes their settings name (`MIDDLEWARE`, storage and
+        session backends): certain for the constructor. Calling the instance is a convention of
+        some settings only (Django calls middleware for every request), so `__call__` is possible.
+        """
+        if site.name == target.qualname:
+            return "certain"
+        if target.cls is None or target.name not in _FRAMEWORK_ENTRIES:
+            return None
+        named = self.resolve(site.name)
+        if not self.is_class(named):
+            return None
+        if named != target.cls and named not in self.subclasses(target.cls):
+            return None
+        return "certain" if target.name in _CONSTRUCTORS else "possible"
 
     def _function_edge(self, target: Scope, site: Site) -> Certainty | None:
         """A module-level function: called or passed by name, or as module.function."""
@@ -645,6 +664,8 @@ class CodeIndex:
         names = {target.name, target.qualname}
         if target.cls and target.name in _CONSTRUCTORS:
             names |= {c.rsplit(".", 1)[-1] for c in {target.cls, *self.subclasses(target.cls)}}
+        if target.cls and target.name in _FRAMEWORK_ENTRIES:
+            names |= {target.cls, *self.subclasses(target.cls)}  # dotted strings naming the class
         return names
 
     def callers(self, target: Scope) -> list[tuple[Scope, Site, Certainty]]:
