@@ -161,6 +161,8 @@ uv run vexproof eval findings.json --observed eval/observed/shop-1aa90f6.json \
 
 The oracle runs target code, so it lives outside the scanner (ADR 0011) and runs in a
 throwaway environment: `eval/dynamic/observe_shop.sh` rebuilds the observation from scratch.
+A second project has one too: `eval/observed/justdjango-260952e.json` (justdjango/django-ecommerce,
+with allauth and the debug toolbar), rebuilt by `eval/dynamic/observe_justdjango.sh`.
 Its first run found a real gap, now fixed: Django loads migration files such as
 `0001_initial.py` by name, and the closure had skipped them.
 

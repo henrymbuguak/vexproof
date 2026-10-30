@@ -17,6 +17,23 @@ Django 2.x, reviewed against every computed import in its source:
 
 Pillow: `Image.init()` imports every format plugin listed in `PIL._plugins` (or the same list in
 `PIL.Image` in other versions); `PIL.features` imports names from a table of strings.
+
+django-allauth, reviewed module by module (0.39) rather than as a whole distribution, because
+its computed imports are spread out and change between versions:
+- `account.forms` imports `ACCOUNT_SIGNUP_FORM_CLASS`, and `socialaccount.helpers` and
+  `allauth.utils` import adapters and forms named in settings: dotted strings, covered by the
+  general string rule;
+- `socialaccount.providers` imports `<app>.provider` for every app in `INSTALLED_APPS`, and
+  `allauth.urls` imports `<provider package>.urls` for each of them: the rule below.
+Any other computed import in allauth still blocks clears.
+
+django-debug-toolbar (1.x), module by module: panels, middleware, the show-toolbar callback,
+extra signals and stack-trace filters are all imported from dotted strings in its settings or
+the project's, which the string rule covers.
+
+`six` and its vendored copies (`urllib3.packages.six`, `stripe.six`, ...) import only names from
+their own table of moved standard-library modules. `requests.packages` imports a literal tuple
+of packages (`urllib3`, `idna`, `chardet`) that requests already imports directly.
 """
 
 from __future__ import annotations
@@ -29,6 +46,28 @@ from pathlib import Path
 
 # Distributions whose computed imports have been reviewed and are covered by the rules here.
 COVERED_DYNAMIC_IMPORTS = frozenset({"django", "pillow"})
+# Single modules whose computed imports have been reviewed and are covered (see above).
+COVERED_DYNAMIC_MODULES = frozenset(
+    {
+        "allauth.account.forms",
+        "allauth.socialaccount.helpers",
+        "allauth.socialaccount.providers",
+        "allauth.urls",
+        "allauth.utils",
+        "debug_toolbar.apps",
+        "debug_toolbar.middleware",
+        "debug_toolbar.panels.signals",
+        "debug_toolbar.toolbar",
+        "debug_toolbar.utils",
+        "requests.packages",
+    }
+)
+
+
+def covered_module(module: str) -> bool:
+    """A module whose computed imports are reviewed and covered (see the docstring)."""
+    return module in COVERED_DYNAMIC_MODULES or module == "six" or module.endswith(".six")
+
 
 APP_MARKERS = ("apps", "models", "admin", "templatetags", "management", "migrations")
 _APP_MODULES = ("apps", "models", "admin", "checks", "signals")
@@ -113,4 +152,22 @@ def pillow_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
                 yield RuleHit(f"PIL.{name}", "Image.init() loads every format plugin in _plugins")
 
 
-RULES: tuple[Callable[[Modules, Reached], Iterable[RuleHit]], ...] = (django_rules, pillow_rules)
+def allauth_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
+    """The provider registry imports `<app>.provider` for each installed app, and
+    `allauth.urls` imports the `urls` module of each provider it registered."""
+    if "allauth.socialaccount.providers" not in reached:
+        return
+    for name in sorted(reached):
+        if _is_package(modules, name) and f"{name}.provider" in modules:
+            yield RuleHit(
+                f"{name}.provider", "allauth loads the provider module of every installed app"
+            )
+            if f"{name}.urls" in modules:
+                yield RuleHit(f"{name}.urls", "allauth mounts the URLs of every provider")
+
+
+RULES: tuple[Callable[[Modules, Reached], Iterable[RuleHit]], ...] = (
+    django_rules,
+    pillow_rules,
+    allauth_rules,
+)

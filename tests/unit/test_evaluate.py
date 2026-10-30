@@ -180,7 +180,7 @@ def test_markdown_and_summary() -> None:
     assert "| GHSA-bad | `PIL.GifImagePlugin` | **yes: wrong clear** (PIL.GifImagePlugin) |" in text
     assert "| GHSA-l0 | (package) | checked via the closure |" in text
     assert f"| GHSA-ran | `{FRAME}` | yes |" in text
-    assert "- `PIL._imaging` (compiled extension: no source to scan)" in text
+    assert "- `PIL._imaging` (no Python source file: a compiled extension" in text
     assert "- GHSA-missed: `PIL.Image.open`" in text
 
 

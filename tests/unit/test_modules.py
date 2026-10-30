@@ -91,3 +91,29 @@ def test_django_rules() -> None:
     assert hits["django.conf.locale.en.formats"] == "Django loads locale formats by name"
     assert "database backend" in hits["django.db.backends.sqlite3.base"]
     assert list(django_rules(modules, {"shop": ""})) == []  # Django itself not reached
+
+
+def test_allauth_six_and_debug_toolbar_computed_imports_are_covered() -> None:
+    from vexproof.static.frameworks import allauth_rules, covered_module
+
+    assert covered_module("allauth.socialaccount.providers")
+    assert covered_module("debug_toolbar.toolbar")
+    assert covered_module("urllib3.packages.six")
+    assert covered_module("six")
+    assert not covered_module("allauth.account.views")  # only reviewed modules are covered
+    assert not covered_module("sixpack")
+    modules = {
+        name: Path(f"/x/{name.replace('.', '/')}/__init__.py")
+        for name in ("allauth.socialaccount.providers", "allauth.socialaccount.providers.google")
+    }
+    modules["allauth.socialaccount.providers.google.provider"] = Path("/x/p.py")
+    modules["allauth.socialaccount.providers.google.urls"] = Path("/x/u.py")
+    reached = dict.fromkeys(
+        ["allauth.socialaccount.providers", "allauth.socialaccount.providers.google"], "r"
+    )
+    hits = {h.module for h in allauth_rules(modules, reached)}
+    assert hits == {
+        "allauth.socialaccount.providers.google.provider",
+        "allauth.socialaccount.providers.google.urls",
+    }
+    assert list(allauth_rules(modules, {})) == []  # nothing when allauth's registry is unused

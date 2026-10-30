@@ -36,7 +36,7 @@ def summary_rows(ev: Evaluation) -> list[tuple[str, str]]:
             (
                 "Modules loaded at run time but missing from the closure",
                 f"{len(ev.closure.missed)} of {ev.closure.loaded}"
-                + (f" (plus {native} compiled extension(s) with no source)" if native else ""),
+                + (f" (plus {native} with no Python source file to scan)" if native else ""),
             )
         )
     unexercised = reachable - len(ev.confirmed)
@@ -110,8 +110,8 @@ def render_markdown(ev: Evaluation) -> str:
     if ev.closure and (ev.closure.missed or ev.closure.not_in_source):
         lines += ["", "## Loaded but not in the closure", ""]
         lines += [f"- `{m}` (soundness failure)" for m in ev.closure.missed]
-        lines += [f"- `{m}` (compiled extension: no source to scan)"
-                  for m in ev.closure.not_in_source]  # fmt: skip
+        why = "no Python source file: a compiled extension, a namespace package or an alias"
+        lines += [f"- `{m}` ({why})" for m in ev.closure.not_in_source]
     if ev.executed_open:
         lines += [
             "",

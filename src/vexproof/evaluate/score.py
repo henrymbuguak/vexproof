@@ -74,7 +74,7 @@ class ClosureCheck:
 
     loaded: int  # loaded modules the scan knows about
     missed: tuple[str, ...]  # loaded, known, but not in the closure: a soundness failure
-    not_in_source: tuple[str, ...]  # loaded, but no Python source (compiled extensions)
+    not_in_source: tuple[str, ...]  # loaded without a source file: extensions, namespace pkgs
     reached: int
     reached_not_loaded: int  # the closure's over-approximation under this workload
 

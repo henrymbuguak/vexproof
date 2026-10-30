@@ -26,7 +26,7 @@ from pathlib import Path
 
 from vexproof.domain import Package
 from vexproof.sources.tree import SourceTree, module_name
-from vexproof.static.frameworks import COVERED_DYNAMIC_IMPORTS, RULES
+from vexproof.static.frameworks import COVERED_DYNAMIC_IMPORTS, RULES, covered_module
 from vexproof.static.imports import ModuleImports, scan_source
 from vexproof.static.project import import_path, is_test_path, python_files
 
@@ -190,6 +190,7 @@ def module_reachability(
         f"{m}:{line}"
         for m in reach.reached
         if reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
+        and not covered_module(m)
         for line in scans[m].dynamic_computed
     )
     if uncovered:
