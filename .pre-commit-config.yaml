@@ -9,6 +9,8 @@ repos:
       - id: check-toml
       - id: check-added-large-files
         args: ["--maxkb=500"]
+        # the demo's real scan: text, mostly advisory descriptions; read by the web app
+        exclude: ^examples/demo/findings\.json$
       - id: detect-private-key
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0  # run `pre-commit autoupdate` once, then pin
