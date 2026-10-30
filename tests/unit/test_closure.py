@@ -126,3 +126,17 @@ def test_global_blockers(trees: dict[Package, SourceTree]) -> None:
     reach = reachability(project, trees, {Package(name="ghost", version="1"): "down"})
     assert len(reach.blockers) == 2
     assert not level0(UNUSED, reach, trees, {}).cleared
+
+
+def test_a_package_its_users_import_under_an_unknown_name_is_never_cleared(
+    trees: dict[Package, SourceTree], tmp_path: Path
+) -> None:
+    # an sdist whose modules were read under the wrong names: `import yaml` resolves to nothing
+    misread = Package(name="PyYAML", version="1")
+    lib = {**trees, misread: make_tree(tmp_path, misread, {"oddlayout/yaml/__init__.py": ""})}
+    reach = reachability(_project({"yaml"}), lib, {})
+    assert reach.unresolved_imports == {"yaml"}
+    result = level0(misread, reach, lib, {})
+    assert not result.cleared
+    assert "imports yaml, which no package's source provides" in " ".join(result.notes)
+    assert level0(UNUSED, reach, lib, {}).cleared  # unrelated packages still clear

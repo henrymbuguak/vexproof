@@ -18,7 +18,7 @@ from vexproof.sources.tree import SourceTree
 from vexproof.static.imports import ModuleImports, scan_source
 from vexproof.static.project import ProjectScan
 
-_IMPORTS_CACHE = "vexproof-imports.v2.json"  # v2: tree v2 lists more modules
+_IMPORTS_CACHE = "vexproof-imports.v3.json"  # v3: follows the tree manifest
 STDLIB = frozenset(sys.stdlib_module_names) | {"__future__", "__main__"}
 
 

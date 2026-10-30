@@ -244,3 +244,26 @@ def test_store_rejects_digest_mismatch_and_oversize(tmp_path: Path, http: JsonHt
     assert trees == {}
     assert "not found on PyPI" in failures[Package(name="missing", version="1.0")]
     assert not list((tmp_path / "cache" / "sources").glob("examplelib*"))
+
+
+def test_sdist_code_under_lib_gets_its_import_names() -> None:
+    from vexproof.sources.archive import Extracted
+    from vexproof.sources.tree import build_tree
+
+    files = [
+        "lib/sqlalchemy/__init__.py",
+        "lib/sqlalchemy/orm/__init__.py",
+        "lib/sqlalchemy/orm/query.py",
+        "lib/six.py",
+        "lib3/yaml/__init__.py",
+        "lib/yaml/__init__.py",
+        "tools/release.py",
+        "examples/demo.py",
+        "setup.py",
+    ]
+    tree = build_tree("x", "1", "sdist", Extracted(root=Path("/nowhere"), python_files=files))
+    assert tree.modules["sqlalchemy.orm.query"] == "lib/sqlalchemy/orm/query.py"
+    assert tree.modules["six"] == "lib/six.py"
+    assert tree.modules["yaml"] == "lib3/yaml/__init__.py"  # the Python 3 copy wins
+    assert "tools.release" in tree.modules  # not a layout folder: left as it is
+    assert not any(m.startswith(("lib.", "examples")) for m in tree.modules)

@@ -11,12 +11,16 @@ from pathlib import Path, PurePosixPath
 from vexproof.sources.archive import Extracted
 
 # v2: modules whose file name is not an identifier (Django's `0001_initial.py`) are included.
+# v3: sdists that keep code under `lib/` (SQLAlchemy, PyYAML) get the right module names.
 # A new name makes trees cached by older versions rebuild once.
-MANIFEST = "vexproof-tree-v2.json"
+MANIFEST = "vexproof-tree-v3.json"
 # Entry-point groups that only create executables; any other group can load code as a plugin.
 SCRIPT_GROUPS = frozenset({"console_scripts", "gui_scripts"})
 _SKIP_TOP = frozenset({"tests", "test", "testing", "docs", "doc", "examples", "benchmarks"})
 _SKIP_FILES = frozenset({"setup.py", "conftest.py"})
+# Folders sdists keep code in without being packages themselves (setup.py's package_dir).
+_LAYOUT_DIRS = frozenset({"lib", "lib3", "python", "python3", "py", "py3", "source"})
+_PY3_DIRS = frozenset({"lib3", "python3", "py3"})
 
 
 @dataclass(frozen=True)
@@ -117,21 +121,60 @@ def _sdist_relative(rel: str) -> str | None:
     return str(PurePosixPath(*parts))
 
 
+def _import_root(rel: str, packages: set[str]) -> str:
+    """Drop layout folders that are not packages: `lib/sqlalchemy/orm.py` -> `sqlalchemy/orm.py`.
+
+    Many sdists keep their code under `lib/` (`package_dir={"": "lib"}`). Without this, every
+    module would be named `lib.sqlalchemy...`, imports of `sqlalchemy` would find nothing, and the
+    package would look unused: a wrong clear. A leading folder is dropped only when it is not a
+    package itself and what follows is one, or when it is a known layout folder.
+    """
+    parts = PurePosixPath(rel).parts
+    for i in range(len(parts) - 1):
+        prefix = "/".join(parts[: i + 1])
+        if prefix in packages:
+            return "/".join(parts[i:]) if i else rel
+        if parts[i] not in _LAYOUT_DIRS and "/".join(parts[: i + 2]) not in packages:
+            return rel
+    return "/".join(parts[-1:]) if all(p in _LAYOUT_DIRS for p in parts[:-1]) else rel
+
+
+def _python3_first(rel: str) -> tuple[int, str]:
+    """PyYAML ships `lib/yaml` (Python 2) and `lib3/yaml` (Python 3): read the Python 3 one."""
+    return (0 if PurePosixPath(rel).parts[0] in _PY3_DIRS else 1, rel)
+
+
+def _sdist_paths(paths: list[str]) -> dict[str, str]:
+    """Import path -> file in the sdist, for every file that is package code."""
+    relative = {rel: r for rel in paths if (r := _sdist_relative(rel)) is not None}
+    packages = {
+        str(PurePosixPath(r).parent) for r in relative.values() if r.endswith("/__init__.py")
+    }
+    found: dict[str, str] = {}
+    for rel in sorted(relative, key=lambda r: _python3_first(relative[r])):
+        found.setdefault(_import_root(relative[rel], packages), rel)
+    return found
+
+
 def build_tree(dist: str, version: str, kind: str, extracted: Extracted) -> SourceTree:
     modules: dict[str, str] = {}
-    for rel in extracted.python_files:
-        top = rel.split("/")[0]
-        if top.endswith((".dist-info", ".egg-info")) or (".data" in top and kind == "wheel"):
-            continue
-        import_rel = rel if kind == "wheel" else _sdist_relative(rel)
-        if import_rel is None or not import_rel.endswith(".py"):
+    files = [
+        rel
+        for rel in extracted.python_files
+        if not rel.split("/")[0].endswith((".dist-info", ".egg-info"))
+        and not (".data" in rel.split("/")[0] and kind == "wheel")
+    ]
+    imports = {rel: rel for rel in files} if kind == "wheel" else _sdist_paths(files)
+    for import_rel, rel in imports.items():
+        if not import_rel.endswith(".py"):
             continue
         name = module_name(import_rel)
         if name and name not in modules:
             modules[name] = rel
-    for rel in extracted.extension_modules:
-        import_rel = rel if kind == "wheel" else (_sdist_relative(rel) or "")
-        name = module_name(import_rel) if import_rel else None
+    natives = list(extracted.extension_modules)
+    native_imports = {rel: rel for rel in natives} if kind == "wheel" else _sdist_paths(natives)
+    for import_rel in native_imports:
+        name = module_name(import_rel)
         if name:
             modules.setdefault(name, "")
     declared = _metadata(extracted, "top_level.txt")
