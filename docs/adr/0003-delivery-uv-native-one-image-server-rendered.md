@@ -1,6 +1,6 @@
 # ADR 0003: uv for development, one Docker image for delivery, server-rendered UI
 
-**Status:** accepted · **Date:** 2026-10-27
+**Status:** accepted, amended by ADR 0012 (no htmx; Ubuntu base with uv) · **Date:** 2026-10-27
 
 ## Context
 Solo build, nine days, and judges who must be able to run the project.

@@ -123,6 +123,22 @@ open-weight **Muse Spark Open** (`muse-spark-open:cloud`) or a local Llama, with
 (see the commented blocks in `.env.example`). The same verifier and gold test apply, and each
 finding records which model chose its symbols.
 
+## Web app
+
+```bash
+uv run vexproof serve                 # http://127.0.0.1:8000
+docker compose up --build             # the same, in one container (needs only Docker)
+```
+
+Paste a GitHub URL and a commit, follow the scan stage by stage, then read the result: what to
+fix first with the verified call path of each alert, the upgrade plan, the open and cleared
+alerts, and downloads (OpenVEX, HTML report, findings JSON). **Demo result** shows the demo
+shop's real scan and how it was checked against the running app, with no scan needed.
+
+Pages work without JavaScript, meet WCAG 2.2 AA (checked with axe-core in light and dark
+themes, desktop and phone), and allow no inline or third-party code (ADR 0012). With Docker, an
+Ollama server your `.env` puts at `localhost` is reached on the host automatically.
+
 ## Evaluation: checked against the running project
 
 Static claims are checked against an oracle: the demo project itself, run with its exact
@@ -171,7 +187,9 @@ history shows its progression.
 - **External tools:** [Syft](https://github.com/anchore/syft) for SBOM generation;
   optionally [Ollama](https://ollama.com) to serve Meta's open-weight models (Muse Spark Open,
   Llama). For evaluation only: uv-managed CPython 3.8 to run the demo project, and the demo
-  project's own pinned packages.
+  project's own pinned packages. The Docker image: Ubuntu 24.04, uv, Syft.
+- **Fonts:** [Atkinson Hyperlegible Next and Mono](https://www.brailleinstitute.org/freefont/)
+  by the Braille Institute (SIL Open Font License), from the @fontsource packages.
 - **Standards:** [OpenVEX v0.2.0](https://github.com/openvex/spec) for the VEX export and
   [package URLs](https://github.com/package-url/purl-spec) to name products.
 - **Data sources:** [OSV.dev](https://osv.dev) (including GitHub Security Advisories and the PyPA
