@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% set active = 'demo' if job_id == 'demo' else '' %}
+{% set urgent = view.tier(tiers.FIX_NOW, tiers.FIX_SOON) %}
+{% set opened = view.tier(tiers.REVIEW) %}
+{% set cleared = view.tier(tiers.NOT_AFFECTED) %}
+{% block title %}{{ view.name }}: {{ view.outcomes.reachable }} reachable of {{ view.outcomes.total }} alerts | vexproof{% endblock %}
+{% block main %}
+<div class="wrap">
+  <header class="result-head">
+    {% if job_id == 'demo' %}<p class="tag">Demo result</p>{% endif %}
+    <h1>{{ view.name }}</h1>
+    <dl class="facts-inline">
+      {% if view.record.commit %}<div><dt>Commit</dt><dd><code>{{ view.record.commit[:12] }}</code></dd></div>{% endif %}
+      <div><dt>Service</dt><dd>{% if view.profile %}{{ 'internet-facing' if view.profile.internet_facing else 'internal' }}, {{ view.profile.criticality }} criticality{% if view.profile.handles_personal_data %}, personal data{% endif %}{% else %}no profile{% endif %}</dd></div>
+      {% if view.record.model and view.record.model.label %}<div><dt>Model</dt><dd>{{ view.record.model.label }}</dd></div>{% endif %}
+    </dl>
+    <ul class="downloads" aria-label="Downloads">
+      <li><a class="button secondary" href="/scans/{{ job_id }}/download/openvex.json" download>OpenVEX document</a></li>
+      <li><a class="button secondary" href="/scans/{{ job_id }}/download/report.html" download>HTML report</a></li>
+      <li><a class="button secondary" href="/scans/{{ job_id }}/download/findings.json" download>Findings JSON</a></li>
+    </ul>
+  </header>
+
+  <section class="summary" aria-labelledby="summary-title">
+    <h2 id="summary-title">{{ view.outcomes.total }} alerts, {{ view.outcomes.cleared + view.outcomes.reachable }} settled with evidence</h2>
+    {% set o = view.outcomes %}
+    {% include "_outcomes.html" %}
+  </section>
+
+  <nav class="on-page" aria-label="On this page">
+    <ul>
+      <li><a href="#fix-first">Fix first <span class="count">{{ urgent | length }}</span></a></li>
+      <li><a href="#upgrades">Upgrade plan <span class="count">{{ view.plans | length }}</span></a></li>
+      <li><a href="#review">Needs review <span class="count">{{ opened | length }}</span></a></li>
+      <li><a href="#cleared">Not affected <span class="count">{{ cleared | length }}</span></a></li>
+      {% if view.evaluation %}<li><a href="/scans/{{ job_id }}/evaluation">How this was checked</a></li>{% endif %}
+    </ul>
+  </nav>
+
+  <section class="block" id="fix-first" aria-labelledby="fix-first-title">
+    <h2 id="fix-first-title">Fix first</h2>
+    <p class="section-lead">Each of these has a verified call path from your code to the vulnerable function. “Fix now” adds a reason to hurry: known exploitation, a high EPSS score, or a severe flaw in an exposed service.</p>
+    {% if urgent %}
+    <ul class="alert-list">{% for item in urgent %}{% include "_alert_row.html" %}{% endfor %}</ul>
+    {% else %}
+    <p class="empty">No alert has a verified call path. Check the open alerts below.</p>
+    {% endif %}
+  </section>
+
+  <section class="block" id="upgrades" aria-labelledby="upgrades-title">
+    <h2 id="upgrades-title">Upgrade plan</h2>
+    <p class="section-lead">The smallest version of each package that resolves its alerts. Cleared alerts need no upgrade.</p>
+    {% if view.plans %}
+    <div class="table-scroll" role="region" aria-label="Upgrade plan table" tabindex="0">
+      <table class="plan">
+        <thead>
+          <tr><th scope="col">Package</th><th scope="col">Installed</th><th scope="col">Clears the reachable alerts</th><th scope="col">Clears every alert</th><th scope="col">Notes</th></tr>
+        </thead>
+        <tbody>
+          {% for plan in view.plans %}
+          <tr>
+            <th scope="row"><span class="badge badge-{{ tier_class[plan.tier] }}">{{ plan.tier.value | capitalize }}</span> {{ plan.package }}</th>
+            <td><code>{{ plan.installed }}</code></td>
+            <td>{% if plan.reachable_target %}<code>{{ plan.reachable_target }}</code> or later{% else %}None reachable{% endif %}</td>
+            <td>{% if plan.target %}<code>{{ plan.target }}</code> or later{% else %}No fix published{% endif %}</td>
+            <td>Resolves {{ plan.resolves | length }}{% if plan.major_jump %}; a major version change, so read the release notes{% endif %}{% if plan.no_fix %}; {{ plan.no_fix | length }} without a fix{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">Nothing to upgrade: every alert is cleared.</p>
+    {% endif %}
+  </section>
+
+  <section class="block" id="review" aria-labelledby="review-title">
+    <h2 id="review-title">Needs review</h2>
+    <p class="section-lead">No verified evidence either way. Known-exploited and severe alerts come first. Each one says what is missing.</p>
+    {% if opened %}
+    <ul class="alert-list">{% for item in opened[:shown_open] %}{% include "_alert_row.html" %}{% endfor %}</ul>
+    {% if opened | length > shown_open %}
+    <details class="more">
+      <summary>Show the other {{ opened | length - shown_open }} open alerts</summary>
+      <ul class="alert-list">{% for item in opened[shown_open:] %}{% include "_alert_row.html" %}{% endfor %}</ul>
+    </details>
+    {% endif %}
+    {% else %}
+    <p class="empty">Nothing is open: every alert was settled with evidence.</p>
+    {% endif %}
+  </section>
+
+  <section class="block" id="cleared" aria-labelledby="cleared-title">
+    <h2 id="cleared-title">Not affected</h2>
+    <p class="section-lead">The module holding the vulnerable function is never loaded by your code, nor by anything it loads.{% if view.evaluation and view.evaluation.sound %} When the app was run, <a href="/scans/{{ job_id }}/evaluation">none of these modules loaded</a>.{% endif %}</p>
+    {% if cleared %}
+    <ul class="alert-list">{% for item in cleared %}{% include "_alert_row.html" %}{% endfor %}</ul>
+    {% else %}
+    <p class="empty">No alert could be cleared.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}vexproof{% endblock %}</title>
+  <meta name="description" content="Which of your dependency alerts can reach your code, with evidence for each one.">
+  <link rel="icon" href="/static/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/atkinson-hyperlegible-next-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <script src="/static/app.js?v={{ version }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap site-bar">
+      <a class="brand" href="/" aria-label="vexproof home">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3v13" class="mark-line"/>
+          <path d="M6 16l9 4" class="mark-line"/>
+          <rect x="3" y="2" width="6" height="6" rx="1" class="mark-start"/>
+          <circle cx="6" cy="12" r="2.2" class="mark-node"/>
+          <circle cx="17" cy="20.5" r="3" class="mark-end"/>
+        </svg>
+        <span>vexproof</span>
+      </a>
+      <nav aria-label="Main">
+        <ul class="nav-list">
+          <li><a href="/" {% if active == 'scan' %}aria-current="page"{% endif %}>New scan</a></li>
+          {% if has_demo() %}<li><a href="/scans/demo" {% if active == 'demo' %}aria-current="page"{% endif %}>Demo result</a></li>{% endif %}
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main id="main" tabindex="-1">
+    {% block main %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>vexproof {{ version }}. The AI proposes. The verifier proves.</p>
+      <p>Built for the Meta Global AI Developer Hackathon with Muse Spark. Advisories from OSV.dev, exploit signals from CISA KEV and FIRST EPSS.</p>
+    </div>
+  </footer>
+</body>
+</html>

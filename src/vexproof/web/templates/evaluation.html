@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set active = 'demo' if job_id == 'demo' else '' %}
+{% block title %}How the {{ view.name }} result was checked | vexproof{% endblock %}
+{% block main %}
+<div class="wrap">
+  <p class="back"><a href="/scans/{{ job_id }}">Back to {{ view.name }}</a></p>
+  <header class="result-head">
+    <h1>How this result was checked</h1>
+    <p class="lead">The project was run on Python {{ ev.observation.python }} with the exact package versions the scan analysed, while a script took {{ ev.observation.steps | length }} steps through it as visitors and admins would{% if uploads %}, including image uploads in {{ uploads }} formats{% endif %}. Every module that loaded and every function that ran was recorded, then compared with the scan.</p>
+  </header>
+
+  <section class="verdict verdict-{{ 'clear' if ev.sound else 'now' }}" aria-labelledby="sound-title">
+    <h2 id="sound-title">{% if ev.sound %}Sound: no clear was contradicted, and every module that loaded was one the scan said could load{% else %}Not sound: see the failures below{% endif %}</h2>
+  </section>
+
+  <section class="block" aria-labelledby="checks-title">
+    <h2 id="checks-title">Results</h2>
+    <div class="table-scroll" role="region" aria-label="Results table" tabindex="0">
+      <table class="plan pairs">
+        <thead><tr><th scope="col">Check</th><th scope="col">Result</th></tr></thead>
+        <tbody>{% for measure, result in view.evaluation_rows %}<tr><th scope="row">{{ measure }}</th><td>{{ result }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="paths-title">
+    <h2 id="paths-title">Reachable alerts: did the vulnerable function run?</h2>
+    <ul class="check-list">
+      {% for p in ev.paths %}
+      <li class="{{ 'ok' if p.status == 'confirmed' else 'idle' }}">
+        <a href="/scans/{{ job_id }}/alerts/{{ finding_key(p.finding) | quote }}">{{ p.finding.advisory.id }}</a>
+        <code>{{ p.target }}</code>
+        <span>{{ 'Ran' if p.status == 'confirmed' else 'Not exercised by the script' }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="block" aria-labelledby="clears-title">
+    <h2 id="clears-title">Cleared alerts: did their module load?</h2>
+    <ul class="check-list">
+      {% for c in ev.clears %}
+      <li class="{{ 'bad' if c.status == 'falsified' else 'ok' }}">
+        <a href="/scans/{{ job_id }}/alerts/{{ finding_key(c.finding) | quote }}">{{ c.finding.advisory.id }}</a>
+        <code>{{ c.modules | join(', ') or 'the whole package' }}</code>
+        <span>{{ 'Loaded: a wrong clear' if c.status == 'falsified' else ('Checked through the closure' if c.status == 'uncheckable' else 'Never loaded') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="block" aria-labelledby="limits-title">
+    <h2 id="limits-title">What this shows, and what it does not</h2>
+    <ul class="notes">
+      <li>A run can contradict a clear but never prove one: a module that did not load here might load under other use. The stronger check is the closure: every module that loaded had to be one the scan said could load.</li>
+      <li>A vulnerable function that ran shows the call path is real, not that an exploit works. One that did not run was not exercised by this script; that is not evidence against the path.</li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

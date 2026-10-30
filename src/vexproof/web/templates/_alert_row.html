@@ -1,0 +1,12 @@
+<li class="alert-row">
+  <span class="badge badge-{{ tier_class[item.tier] }}">{{ item.tier.value | capitalize }}</span>
+  <div class="alert-main">
+    <p class="alert-title">
+      <a href="/scans/{{ job_id }}/alerts/{{ finding_key(item.finding) | quote }}">{{ item.finding.advisory.id }}</a>
+      <span class="alert-pkg">{{ item.finding.package.name }} {{ item.finding.package.version }}</span>
+    </p>
+    {% if item.finding.advisory.summary %}<p class="alert-summary">{{ item.finding.advisory.summary }}</p>{% endif %}
+    <p class="alert-why">{{ item.brief | sentence }}</p>
+  </div>
+  <p class="alert-fix">{% if item.finding.advisory.fixed_in %}Fixed in <strong>{{ item.finding.advisory.fixed_in }}</strong>{% else %}No fix published{% endif %}</p>
+</li>

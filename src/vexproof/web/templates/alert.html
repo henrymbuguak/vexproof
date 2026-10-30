@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% set f = item.finding %}
+{% set ev = f.evidence %}
+{% set active = 'demo' if job_id == 'demo' else '' %}
+{% block title %}{{ f.advisory.id }} in {{ f.package.name }} | vexproof{% endblock %}
+{% block main %}
+<div class="wrap">
+  <p class="back"><a href="/scans/{{ job_id }}#{{ 'fix-first' if item.tier.value in ['fix now', 'fix soon'] else ('cleared' if item.tier.value == 'not affected' else 'review') }}">Back to {{ view.name }}</a></p>
+
+  <header class="alert-head">
+    <p class="alert-pkg-line"><span class="badge badge-{{ tier_class[item.tier] }}">{{ item.tier.value | capitalize }}</span> {{ f.package.name }} {{ f.package.version }}</p>
+    <h1>{{ f.advisory.id }}</h1>
+    {% if f.advisory.summary %}<p class="lead">{{ f.advisory.summary }}</p>{% endif %}
+  </header>
+
+  <div class="alert-layout">
+    <div class="alert-body">
+      <section class="verdict verdict-{{ tier_class[item.tier] }}" aria-labelledby="verdict-title">
+        <h2 id="verdict-title">{{ verdict }}</h2>
+        <ul class="reasons">
+          {% for reason in item.reasons %}<li>{{ reason | sentence }}</li>{% endfor %}
+        </ul>
+      </section>
+
+      {% if steps %}
+      <section class="block" aria-labelledby="path-title">
+        <h2 id="path-title">Call path from your code</h2>
+        <p class="section-lead">
+          {% if ev.chain_model %}Each step is checked against the code at the line shown. Dashed steps call a method on an object whose type the code does not show; {{ ev.chain_model }} judged them plausible.
+          {% else %}Each step is checked against the code at the line shown, and every one is certain: the code itself shows what is called.{% endif %}
+        </p>
+        {% include "_trace.html" %}
+      </section>
+      {% endif %}
+
+      {% if ev and ev.vulnerable_symbols %}
+      <section class="block" aria-labelledby="pick-title">
+        <h2 id="pick-title">The vulnerable function</h2>
+        <p>{% for s in ev.vulnerable_symbols %}<code>{{ s }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        {% if ev.symbol_quote %}<blockquote class="quote"><p>{{ ev.symbol_quote }}</p><footer>From the advisory, quoted by {{ ev.symbol_model }} to justify the pick. The verifier found the quote in the advisory and the function in the installed code.</footer></blockquote>{% endif %}
+      </section>
+      {% endif %}
+
+      {% if ev and ev.notes %}
+      <section class="block" aria-labelledby="notes-title">
+        <h2 id="notes-title">Evidence</h2>
+        <ul class="notes">{% for note in ev.notes %}<li>{{ note }}</li>{% endfor %}</ul>
+      </section>
+      {% endif %}
+
+      {% if statement %}
+      <section class="block" aria-labelledby="vex-title">
+        <h2 id="vex-title">OpenVEX statement</h2>
+        <p class="section-lead">How this alert appears in the <a href="/scans/{{ job_id }}/download/openvex.json" download>OpenVEX document</a>.</p>
+        <pre class="code-block" tabindex="0"><code>{{ statement }}</code></pre>
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="alert-facts" aria-labelledby="facts-title">
+      <h2 id="facts-title">Facts</h2>
+      <dl>
+        <div><dt>Fixed in</dt><dd>{{ f.advisory.fixed_in or 'No fix published' }}</dd></div>
+        <div><dt>CVSS</dt><dd>{{ '%.1f' % f.signals.cvss if f.signals.cvss is not none else (f.advisory.severity_label or 'Unknown') | lower | capitalize }}</dd></div>
+        <div><dt>EPSS</dt><dd>{{ '%.1f%%' % (100 * f.signals.epss) if f.signals.epss is not none else 'Unknown' }}</dd></div>
+        <div><dt>In CISA KEV</dt><dd>{{ 'Yes: known exploited' if f.signals.in_kev else 'No' }}</dd></div>
+        {% if f.advisory.aliases %}<div><dt>Also known as</dt><dd>{{ f.advisory.aliases | join(', ') }}</dd></div>{% endif %}
+        {% if ev %}<div><dt>Evidence level</dt><dd>{{ ev.level.value }}</dd></div>{% endif %}
+      </dl>
+      <ul class="link-list">
+        <li><a href="https://osv.dev/vulnerability/{{ f.advisory.id | quote }}" rel="noopener noreferrer">Advisory on OSV.dev</a></li>
+        {% if ev %}{% for url in ev.fix_commits %}{% if url.startswith('https://') %}<li><a href="{{ url }}" rel="noopener noreferrer">Fix commit {{ url.rsplit('/', 1)[-1][:10] }}</a></li>{% endif %}{% endfor %}{% endif %}
+      </ul>
+    </aside>
+  </div>
+</div>
+{% endblock %}

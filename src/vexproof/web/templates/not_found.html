@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ heading or 'Not found' }} | vexproof{% endblock %}
+{% block main %}
+<section class="wrap narrow">
+  <h1>{{ heading or 'That page is not here' }}</h1>
+  <p>{{ what }}</p>
+  <p><a class="button" href="/">Start a scan</a></p>
+</section>
+{% endblock %}

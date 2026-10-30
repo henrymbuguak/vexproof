@@ -1,0 +1,10 @@
+{# A call path, from your code (first) to the vulnerable function (last). #}
+<ol class="trace" aria-label="{{ trace_label | default('Call path from your code to the vulnerable function') }}">
+  {% for s in steps %}
+  <li class="step{% if s.first %} step-start{% endif %}{% if s.last %} step-end{% endif %}{% if not s.certain %} step-reviewed{% endif %}">
+    {% if s.label %}<span class="step-how">{{ s.label }}</span>{% endif %}
+    <code class="step-symbol">{% for part in s.symbol.split('.') %}{{ part }}{% if not loop.last %}.<wbr>{% endif %}{% endfor %}</code>
+    <span class="step-where">{{ s.where }}</span>
+  </li>
+  {% endfor %}
+</ol>

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% set active = 'scan' %}
+{% block title %}{% if errors %}Error: {% endif %}Which dependency alerts reach your code | vexproof{% endblock %}
+{% block main %}
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-text">
+      <h1>Which of your dependency alerts can actually reach your code?</h1>
+      <p class="lead">Scanners list every advisory for every package you install. vexproof reads your code and each advisory's fix, then settles each alert with evidence: a verified call path from your code to the vulnerable function, or proof that its module never loads.</p>
+      <p>Muse Spark proposes which function an advisory is about and judges uncertain steps. A verifier checks every step before anything is reported.</p>
+    </div>
+    {% set example = demo.headline_path if demo else None %}
+    {% if example %}
+    <figure class="hero-trace">
+      {% set steps = trace_of(example.finding) %}
+      {% include "_trace.html" %}
+      <figcaption>
+        From the demo scan: <a href="/scans/demo/alerts/{{ finding_key(example.finding) | quote }}">{{ example.finding.advisory.id }}</a> in {{ example.finding.package.name }} {{ example.finding.package.version }}. Every step is certain, so no model judgement was needed.
+      </figcaption>
+    </figure>
+    {% endif %}
+  </div>
+</section>
+
+<section class="wrap scan-section" aria-labelledby="scan-title">
+  <div class="scan-intro">
+    <h2 id="scan-title">Scan a repository</h2>
+    <p>Python projects on public GitHub. A pinned commit makes the result reproducible.</p>
+    {% if model_label %}
+    <p class="note">Function picks and path reviews use <strong>{{ model_label }}</strong>.</p>
+    {% else %}
+    <p class="note">No model is configured, so alerts can still be cleared by module but no vulnerable functions are picked. Set one up in <code>.env</code>.</p>
+    {% endif %}
+  </div>
+
+  <form class="scan-form" method="post" action="/scans" novalidate>
+    {% if errors %}
+    <div class="error-summary" role="alert" tabindex="-1" data-focus>
+      <h3>Fix {{ 'this' if errors|length == 1 else 'these' }} to start the scan</h3>
+      <ul>
+        {% for field, message in errors.items() %}
+        <li>{% if field in ['repo', 'commit', 'criticality'] %}<a href="#{{ field }}">{{ message }}</a>{% else %}{{ message }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="field{% if errors.repo %} field-error{% endif %}">
+      <label for="repo">GitHub repository</label>
+      <p class="hint" id="repo-hint">For example https://github.com/henrymbuguak/Shopping-Cart-Using-Django-2.0-and-Python-3.6</p>
+      {% if errors.repo %}<p class="error" id="repo-error">{{ errors.repo }}</p>{% endif %}
+      <input id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" required
+             value="{{ form.repo or '' }}" aria-describedby="repo-hint{% if errors.repo %} repo-error{% endif %}"
+             {% if errors.repo %}aria-invalid="true"{% endif %}>
+    </div>
+
+    <div class="field{% if errors.commit %} field-error{% endif %}">
+      <label for="commit">Commit</label>
+      <p class="hint" id="commit-hint">The full or short SHA from the repository's commit history</p>
+      {% if errors.commit %}<p class="error" id="commit-error">{{ errors.commit }}</p>{% endif %}
+      <input id="commit" name="commit" type="text" autocomplete="off" spellcheck="false" required class="input-code"
+             value="{{ form.commit or '' }}" aria-describedby="commit-hint{% if errors.commit %} commit-error{% endif %}"
+             {% if errors.commit %}aria-invalid="true"{% endif %}>
+    </div>
+
+    <fieldset class="profile">
+      <legend>The service this code runs in</legend>
+      <p class="hint">Changes which alerts to fix first, never whether an alert is reachable.</p>
+      <div class="check">
+        <input id="internet_facing" name="internet_facing" type="checkbox" {% if form.internet_facing == 'on' %}checked{% endif %}>
+        <label for="internet_facing">It can be reached from the internet</label>
+      </div>
+      <div class="check">
+        <input id="personal_data" name="personal_data" type="checkbox" {% if form.personal_data == 'on' %}checked{% endif %}>
+        <label for="personal_data">It handles personal data</label>
+      </div>
+      <div class="field field-inline{% if errors.criticality %} field-error{% endif %}">
+        <label for="criticality">How critical it is to the business</label>
+        <select id="criticality" name="criticality">
+          {% for value in ['low', 'medium', 'high'] %}
+          <option value="{{ value }}" {% if (form.criticality or 'medium') == value %}selected{% endif %}>{{ value | capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </fieldset>
+
+    <button class="button" type="submit">Start scan</button>
+  </form>
+</section>
+
+{% if demo %}
+<section class="wrap settles" aria-labelledby="settles-title">
+  <h2 id="settles-title">What a scan settles</h2>
+  <p>The demo scan of a Django shop: {{ demo.outcomes.total }} alerts from a standard scanner, each placed in one of three outcomes.</p>
+  {% set o = demo.outcomes %}
+  {% include "_outcomes.html" %}
+  <p><a class="text-link" href="/scans/demo">Open the demo result</a></p>
+</section>
+{% endif %}
+{% endblock %}

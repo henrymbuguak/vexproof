@@ -1,0 +1,24 @@
+{# The share of alerts in each outcome: a bar for the eye, a list for everyone. #}
+<div class="outcomes">
+  {# SVG, not inline styles: the Content-Security-Policy allows no style attributes. #}
+  {% set c, r = o.share(o.cleared), o.share(o.reachable) %}
+  <svg class="outcome-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <rect class="seg-clear" x="0" y="0" width="{{ '%.3f' % c }}" height="6"/>
+    <rect class="seg-reach" x="{{ '%.3f' % c }}" y="0" width="{{ '%.3f' % r }}" height="6"/>
+    <rect class="seg-open" x="{{ '%.3f' % (c + r) }}" y="0" width="{{ '%.3f' % (100 - c - r) }}" height="6"/>
+  </svg>
+  <dl class="outcome-legend">
+    <div class="legend-item legend-clear">
+      <dt>Not affected</dt>
+      <dd><strong>{{ o.cleared }}</strong> cleared with evidence: the vulnerable module never loads</dd>
+    </div>
+    <div class="legend-item legend-reach">
+      <dt>Reachable</dt>
+      <dd><strong>{{ o.reachable }}</strong> with a verified call path from your code{% if o.certain %}, {{ o.certain }} certain at every step{% endif %}</dd>
+    </div>
+    <div class="legend-item legend-open">
+      <dt>Open</dt>
+      <dd><strong>{{ o.open }}</strong> without verified evidence either way, listed for review</dd>
+    </div>
+  </dl>
+</div>

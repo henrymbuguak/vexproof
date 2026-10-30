@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% set state_text = {'done': 'Done', 'running': 'In progress', 'waiting': 'Waiting', 'skipped': 'Not needed', 'failed': 'Stopped'} %}
+{% block title %}{{ 'The scan of ' ~ name ~ ' stopped' if job.state == 'failed' else 'Scanning ' ~ name }} | vexproof{% endblock %}
+{% block main %}
+<section class="wrap narrow progress-page" data-job="{{ job.id }}" data-state="{{ job.state }}">
+  <h1>{% if job.state == 'failed' %}The scan of {{ name }} stopped{% else %}Scanning {{ name }}{% endif %}</h1>
+  <p class="meta-line">Commit <code>{{ job.commit }}</code></p>
+
+  <p id="live" class="live" role="status" aria-live="polite">
+    {%- if job.state == 'queued' %}Waiting for the scan before this one to finish.
+    {%- elif job.state == 'running' and job.stage %}{{ stage_labels[job.stage] }}.
+    {%- elif job.state == 'running' %}Starting.
+    {%- endif -%}
+  </p>
+
+  <ol class="stages">
+    {% for row in job.stage_rows() %}
+    <li class="stage stage-{{ row.status }}" data-stage="{{ row.key }}">
+      <span class="stage-label">{{ row.label }}</span>
+      <span class="stage-state">{{ state_text[row.status] }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+
+  {% if job.state == 'failed' %}
+  <div class="error-summary" role="alert">
+    <h2>What went wrong</h2>
+    <p>{{ job.error }}</p>
+    <p><a href="/">Start another scan</a></p>
+  </div>
+  {% else %}
+  <p class="note">A first scan of a project downloads its packages and the advisories' fix commits, which can take several minutes. You can leave this page: its link keeps working until the server restarts.</p>
+  <noscript><p><a class="button secondary" href="/scans/{{ job.id }}">Check progress</a></p></noscript>
+  {% endif %}
+</section>
+{% endblock %}

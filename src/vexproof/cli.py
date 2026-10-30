@@ -15,27 +15,19 @@ from rich.table import Table
 
 from vexproof import __version__
 from vexproof.config import Settings
-from vexproof.domain import Finding, Level, ServiceProfile, Verdict
+from vexproof.domain import Finding, Level, ServiceProfile
 from vexproof.domain.profile import load_service_profile
 from vexproof.errors import VexproofError
 from vexproof.evaluate.markdown import render_markdown, summary_rows
 from vexproof.evaluate.score import evaluate, load_observation, load_record
-from vexproof.ingest.repo import checkout
-from vexproof.intel.cache import Cache
-from vexproof.intel.http import JsonHttp, make_client
 from vexproof.llm.budget import UsageReport
-from vexproof.llm.factory import ModelConfig, ModelStack, build_stack, list_models
-from vexproof.llm.meta import Api
-from vexproof.llm.recording import Mode
+from vexproof.llm.factory import ModelStack, build_stack, list_models
 from vexproof.llm.types import ModelError
 from vexproof.logging import configure_logging
 from vexproof.modelcheck import MIN_ACCURACY, GoldReport, ping, run_gold
 from vexproof.pipeline import (
-    Analyzers,
-    IntelConfig,
     ScanResult,
     level_counts,
-    scan,
     selection_counts,
     verdict_counts,
 )
@@ -43,9 +35,7 @@ from vexproof.report.context import ReportContext, short_symbol
 from vexproof.report.html import render_html
 from vexproof.report.openvex import openvex, problems
 from vexproof.report.priority import Ranked, Tier, Upgrade, rank, upgrade_plan
-from vexproof.sources.git import GitFixFetcher
-from vexproof.sources.pypi import PyPIClient
-from vexproof.sources.store import SourceStore
+from vexproof.service import ScanRequest, model_config, payload, run_scan
 from vexproof.symbols.gold import load_gold
 
 app = typer.Typer(help="Which dependency vulnerabilities actually reach your code, with proof.")
@@ -214,71 +204,6 @@ def _render_usage(stack: ModelStack, settings: Settings) -> None:
     )
 
 
-def _model_config(
-    settings: Settings, *, api: Api | None = None, mode: Mode | None = None
-) -> ModelConfig:
-    key = settings.model_api_key.get_secret_value() if settings.model_api_key else None
-    return ModelConfig(
-        api_key=key or None,
-        base_url=settings.model_base_url,
-        model=settings.model,
-        api=api or settings.model_api,
-        mode=mode or settings.model_mode,
-        max_tokens=settings.model_max_tokens,
-        recordings_dir=settings.cache_dir / "model",
-        timeout_s=settings.model_timeout_s,
-        workers=settings.model_workers,
-    )
-
-
-def _usage(stack: ModelStack | None, settings: Settings) -> dict[str, object] | None:
-    """Model use for the whole scan: what this run cost, and what a run without recordings costs."""
-    if stack is None or not stack.budget.report.total.calls:
-        return None
-    report = stack.budget.report
-    total = report.total
-    return {
-        "label": stack.label,
-        "calls": total.calls,
-        "replayed": total.replayed,
-        "input_tokens": total.input_tokens,
-        "output_tokens": total.output_tokens,
-        "recorded_input_tokens": total.recorded_input_tokens,
-        "recorded_output_tokens": total.recorded_output_tokens,
-        "cost_usd": report.cost_usd(settings.price_input_per_m, settings.price_output_per_m),
-        "fresh_cost_usd": report.cost_usd(
-            settings.price_input_per_m, settings.price_output_per_m, fresh=True
-        ),
-        "by_purpose": {k: v.calls for k, v in sorted(report.by_purpose.items())},
-    }
-
-
-def _payload(result: ScanResult, usage: dict[str, object] | None = None) -> dict[str, object]:
-    closure = result.closure
-    return {
-        "source": result.source,
-        "commit": result.commit,
-        "timings_s": {k: round(v, 2) for k, v in result.timings_s.items()},
-        "model": usage,
-        "closure": None
-        if closure is None
-        else {
-            "reached": list(closure.reached),
-            "unreached": list(closure.unreached),
-            "blockers": list(closure.blockers),
-        },
-        "summary": {
-            "alerts": len(result.findings),
-            "levels": level_counts(result.findings),
-            "cleared": sum(1 for f in result.findings if f.verdict is Verdict.NOT_AFFECTED),
-            "selection": selection_counts(result.findings),
-            "verdicts": verdict_counts(result.findings),
-        },
-        "packages": [p.model_dump(mode="json") for p in result.packages],
-        "findings": [f.model_dump(mode="json") for f in result.findings],
-    }
-
-
 @app.command("scan")
 def scan_command(
     target: Annotated[
@@ -321,66 +246,31 @@ def scan_command(
     """Scan a repository: raw alerts, then the evidence level of each one."""
     configure_logging(json_output=log_json)
     settings = Settings()
+    request = ScanRequest(
+        target=target,
+        commit=commit,
+        sbom=sbom,
+        analysis=analysis,
+        model=model,
+        trace=trace,
+        workspace=workspace,
+    )
     try:
         service_profile = load_service_profile(profile) if profile else None
-        resolved_commit: str | None = commit
-        if target.startswith("https://"):
-            if not commit:
-                raise typer.BadParameter("--commit is required when scanning a GitHub URL")
-            repo = checkout(target, commit, workspace)
-            repo_path, resolved_commit = repo.path, repo.commit
-        else:
-            repo_path = Path(target).resolve()
-            if not repo_path.is_dir():
-                raise typer.BadParameter(f"{target} is not a directory")
-        stack: ModelStack | None = None
-        model_config = _model_config(settings)
-        use_model = model if model is not None else model_config.ready
-        if use_model and analysis:
-            stack = build_stack(model_config)
-        cache = Cache(settings.cache_dir / "http.sqlite3")
-        try:
-            with make_client(settings.user_agent, settings.http_timeout_s) as client:
-                http = JsonHttp(client, cache)
-                analyzers = (
-                    Analyzers(
-                        store=SourceStore(
-                            settings.cache_dir,
-                            PyPIClient(
-                                http, client, settings.pypi_url, settings.max_download_mb * 10**6
-                            ),
-                        ),
-                        fetcher=GitFixFetcher(settings.cache_dir),
-                        workers=settings.workers,
-                    )
-                    if analysis
-                    else None
-                )
-                result = scan(
-                    repo_path,
-                    http=http,
-                    config=IntelConfig(
-                        settings.osv_url, settings.kev_url, settings.epss_url, settings.workers
-                    ),
-                    analyzers=analyzers,
-                    model=stack,
-                    trace=trace,
-                    sbom_path=sbom,
-                    source=target,
-                    commit=resolved_commit,
-                )
-        finally:
-            cache.close()
+        outcome = run_scan(settings, request)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     except VexproofError as exc:
         console.print(f"[red]error:[/red] {escape(str(exc))}")
         raise typer.Exit(code=2) from exc
 
+    result = outcome.result
     _render(result, service_profile)
-    if stack is not None:
-        _render_usage(stack, settings)
+    if outcome.stack is not None:
+        _render_usage(outcome.stack, settings)
     if json_out:
-        payload = _payload(result, _usage(stack, settings))
-        json_out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        document = payload(result, outcome.usage)
+        json_out.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
         console.print(f"wrote {escape(str(json_out))}")
     context = _context(result.source, result.commit, result.findings, service_profile)
     _write_reports(context, html_out, vex_out)
@@ -597,7 +487,7 @@ def check_model_command(
     """Go/no-go for the Model API: key, models, structured output, then the gold symbol test."""
     configure_logging()
     settings = Settings()
-    config = _model_config(settings)
+    config = model_config(settings)
     say = functools.partial(console.print, soft_wrap=True)
     say(escape(f"endpoint: {config.base_url} | model: {config.model} | api: {config.api}"))
     if config.local:
@@ -615,7 +505,7 @@ def check_model_command(
         say(f"[yellow]warning[/yellow]: {escape(str(exc))}")
 
     result = ping(
-        lambda api: build_stack(_model_config(settings, api=api, mode="live")), prefer=config.api
+        lambda api: build_stack(model_config(settings, api=api, mode="live")), prefer=config.api
     )
     for api, error in result.errors.items():
         say(f"  {api} API: [red]failed[/red]: {escape(error)}")
@@ -633,7 +523,7 @@ def check_model_command(
         data = json.loads(findings_json.read_text(encoding="utf-8"))
         findings = [Finding.model_validate(f) for f in data["findings"]]
         cases = load_gold(gold)
-        stack = build_stack(_model_config(settings, api=result.api))
+        stack = build_stack(model_config(settings, api=result.api))
         report = run_gold(cases, findings, stack)
     except (OSError, ValueError, KeyError) as exc:
         console.print(
@@ -718,6 +608,29 @@ def eval_command(
     else:
         console.print("verdict: [red]UNSOUND[/red]")
         raise typer.Exit(code=1)
+
+
+@app.command("serve")
+def serve_command(
+    host: Annotated[str, typer.Option(help="Interface to listen on")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on")] = 8000,
+) -> None:
+    """Start the web app: run scans from the browser and read their results."""
+    try:
+        import uvicorn  # noqa: PLC0415 - the web group is optional
+
+        from vexproof.web.app import create_app  # noqa: PLC0415
+    except ImportError as exc:
+        console.print("[red]error:[/red] the web app needs its extras: uv sync --group web")
+        raise typer.Exit(code=2) from exc
+    configure_logging()
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        console.print(
+            "[yellow]note:[/yellow] listening beyond this computer. Anyone who can reach it can "
+            "start scans, which clone repositories and may call your model API."
+        )
+    console.print(f"vexproof web app on http://{escape(host)}:{port}")
+    uvicorn.run(create_app(), host=host, port=port, log_level="warning")
 
 
 @app.command("version")
