@@ -1,0 +1,16 @@
+# docker compose up --build, then open http://127.0.0.1:8000
+services:
+  vexproof:
+    build: .
+    image: vexproof
+    ports:
+      - "127.0.0.1:8000:8000"  # this computer only: scans clone code and may use your model API
+    volumes:
+      - vexproof-data:/data  # package sources, fix commits, model recordings: reused across runs
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:  # lets the container reach Ollama on this computer (see VEXPROOF_LOCALHOST_ALIAS)
+      - "host.docker.internal:host-gateway"
+volumes:
+  vexproof-data:

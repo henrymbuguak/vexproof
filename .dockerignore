@@ -1,0 +1,19 @@
+# Never in the image: secrets, local state, caches, and scan output.
+.env
+.git
+.venv
+.vexproof-cache
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.hypothesis
+.coverage
+**/__pycache__
+findings*.json
+*.html
+!src/vexproof/web/templates/*.html
+eval/workspace
+eval/results
+tests
+tools
+docs
