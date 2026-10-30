@@ -30,6 +30,7 @@ from vexproof.pipeline import (
     select_symbols,
     selection_counts,
 )
+from vexproof.service import payload
 from vexproof.static.modules import ModuleReach
 
 runner = CliRunner()
@@ -148,6 +149,7 @@ def fake_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[ModelConfi
         return real(config, live=ScriptedTransport(_answers))
 
     monkeypatch.setattr(cli, "build_stack", build)
+    monkeypatch.setattr("vexproof.service.build_stack", build)
     monkeypatch.setattr(cli, "list_models", lambda key, url: ["muse-spark-1.1", "muse-spark-1.2"])
     return configs
 
@@ -191,7 +193,7 @@ def test_cli_scan_model_needs_a_key(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 def _findings_file(tmp_path: Path, findings: Sequence[Finding]) -> Path:
     path = tmp_path / "findings.json"
     result = ScanResult(source="s", commit=None, packages=(), findings=tuple(findings))
-    path.write_text(json.dumps(cli._payload(result)))
+    path.write_text(json.dumps(payload(result)))
     return path
 
 

@@ -424,3 +424,21 @@ def test_meta_gives_up_on_persistent_server_errors() -> None:
     with pytest.raises(ModelError, match="unavailable after retries"):
         meta.complete(_request())
     assert len(seen) == 4
+
+
+def test_localhost_model_server_through_a_container_alias() -> None:
+    from vexproof.config import Settings
+    from vexproof.service import model_config
+
+    def base(**env: str) -> str:
+        return model_config(Settings.model_validate(env)).base_url
+
+    ollama = {"VEXPROOF_MODEL_BASE_URL": "http://localhost:11434/v1"}
+    assert base(**ollama) == "http://localhost:11434/v1"
+    alias = {**ollama, "VEXPROOF_LOCALHOST_ALIAS": "host.docker.internal"}
+    assert base(**alias) == "http://host.docker.internal:11434/v1"
+    remote = {"VEXPROOF_MODEL_BASE_URL": "https://api.meta.ai/v1"}
+    assert base(**remote, VEXPROOF_LOCALHOST_ALIAS="x") == "https://api.meta.ai/v1"
+    assert base(VEXPROOF_MODEL_BASE_URL="http://127.0.0.1/v1", VEXPROOF_LOCALHOST_ALIAS="h") == (
+        "http://h/v1"
+    )

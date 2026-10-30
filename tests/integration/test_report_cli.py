@@ -16,6 +16,7 @@ from vexproof import cli
 from vexproof.domain import Verdict
 from vexproof.pipeline import ScanResult, prove
 from vexproof.report.openvex import problems
+from vexproof.service import payload
 
 EXAMPLE = Path(__file__).parents[2] / "examples" / "service_profile.yaml"
 
@@ -32,7 +33,7 @@ def _findings_file(tmp_path: Path) -> Path:
         source="https://github.com/acme/shop", commit="abc1234", packages=(PILLOW,), findings=proved
     )
     out = tmp_path / "findings.json"
-    out.write_text(json.dumps(cli._payload(result)))
+    out.write_text(json.dumps(payload(result)))
     return out
 
 

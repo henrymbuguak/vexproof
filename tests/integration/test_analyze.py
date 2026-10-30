@@ -140,14 +140,14 @@ def test_analyze_assigns_every_level(
 def test_show_command_explains_one_alert(
     project: Path, upstream: Upstream, analyzers: Analyzers, tmp_path: Path
 ) -> None:
-    from vexproof.cli import _payload
+    from vexproof.service import payload
 
     findings = analyze(
         project, [EXAMPLE], [_finding(EXAMPLE, "GHSA-python-fix", upstream.fix)], analyzers
     )
     out = tmp_path / "findings.json"
     result = ScanResult(source="project", commit=None, packages=(EXAMPLE,), findings=findings)
-    out.write_text(json.dumps(_payload(result)))
+    out.write_text(json.dumps(payload(result)))
     runner = CliRunner()
     shown = runner.invoke(app, ["show", str(out), "ghsa-python-fix"], terminal_width=200)
     assert shown.exit_code == 0, shown.output

@@ -48,6 +48,9 @@ from vexproof.symbols.verify import Rejected, Verified, verify
 
 log = structlog.get_logger(__name__)
 
+# Stage names in order, as `scan(progress=...)` reports them; a stage with nothing to do is skipped.
+STAGES = ("ingest", "intel", "analyze", "select", "prove")
+
 
 @dataclass(frozen=True, slots=True)
 class IntelConfig:
@@ -322,25 +325,32 @@ def scan(
     commit: str | None = None,
     sbom_generator: Callable[[Path], dict[str, Any]] = generate_sbom,
     trace: bool = True,
+    progress: Callable[[str], None] | None = None,
 ) -> ScanResult:
+    """Run every stage; `progress` hears each stage's name as it starts (see STAGES)."""
     timings: dict[str, float] = {}
+    tell = progress or (lambda _: None)
+    tell("ingest")
     started = time.perf_counter()
     packages = collect_packages(repo, sbom_path, sbom_generator)
     timings["ingest"] = time.perf_counter() - started
     log.info("ingest_done", packages=len(packages), direct=sum(p.direct for p in packages))
 
+    tell("intel")
     started = time.perf_counter()
     findings = gather_intel(packages, http, config)
     timings["intel"] = time.perf_counter() - started
     log.info("intel_done", findings=len(findings), kev=sum(f.signals.in_kev for f in findings))
 
     if analyzers is not None and findings:
+        tell("analyze")
         started = time.perf_counter()
         findings = analyze(repo, packages, findings, analyzers)
         timings["analyze"] = time.perf_counter() - started
         log.info("analyze_done", **level_counts(findings))
 
     if model is not None and any(needs_selection(f) for f in findings):
+        tell("select")
         started = time.perf_counter()
         findings = select_symbols(findings, model)
         timings["select"] = time.perf_counter() - started
@@ -348,6 +358,7 @@ def scan(
 
     closure: ModuleClosure | None = None
     if analyzers is not None and findings:
+        tell("prove")
         started = time.perf_counter()
         reach = module_closure(repo, packages, analyzers)
         closure = ModuleClosure.of(reach)

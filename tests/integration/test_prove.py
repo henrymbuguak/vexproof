@@ -14,6 +14,7 @@ from tests.trees import make_tree
 from vexproof import cli
 from vexproof.domain import Advisory, Candidate, Evidence, Finding, Level, Package, Verdict
 from vexproof.pipeline import Analyzers, ScanResult, prove, verdict_counts
+from vexproof.service import payload
 from vexproof.sources.tree import SourceTree
 
 
@@ -135,7 +136,7 @@ def test_cli_shows_verdicts_and_the_call_path(tmp_path: Path) -> None:
     assert "Alert noise reduction: 25.0% (1 of 4 cleared with evidence); 1 proven reachable" in text
 
     out = tmp_path / "findings.json"
-    out.write_text(json.dumps(cli._payload(result)))
+    out.write_text(json.dumps(payload(result)))
     assert json.loads(out.read_text())["summary"]["verdicts"]["path_certain"] == 1
     shown = CliRunner().invoke(cli.app, ["show", str(out), "GHSA-frame"], terminal_width=200)
     assert shown.exit_code == 0, shown.output

@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     model_max_tokens: int = Field(default=1_000_000, gt=0, alias="VEXPROOF_MODEL_MAX_TOKENS")
     model_timeout_s: float = Field(default=120.0, gt=0, alias="VEXPROOF_MODEL_TIMEOUT_S")
     model_workers: int = Field(default=4, ge=1, le=32, alias="VEXPROOF_MODEL_WORKERS")
+    localhost_alias: str | None = Field(
+        default=None,
+        alias="VEXPROOF_LOCALHOST_ALIAS",
+        description="Inside a container, the name of the host computer (host.docker.internal), so "
+        "a model server configured at localhost, such as Ollama, is still found",
+    )
     price_input_per_m: float | None = Field(default=None, ge=0, alias="VEXPROOF_PRICE_INPUT_PER_M")
     price_output_per_m: float | None = Field(
         default=None, ge=0, alias="VEXPROOF_PRICE_OUTPUT_PER_M"
