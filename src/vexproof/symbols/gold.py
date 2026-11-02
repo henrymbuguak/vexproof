@@ -21,7 +21,14 @@ class GoldCase(BaseModel):
     package: str
     expected: tuple[str, ...] | Literal["none"]
     must_include: tuple[str, ...] = ()
+    versions: tuple[str, ...] = Field(
+        default=(), description="installed versions this answer holds for; empty: any version"
+    )
     why: str = Field(min_length=1)
+
+    def applies_to(self, version: str) -> bool:
+        """Whether this answer holds for the installed version (code differs between them)."""
+        return not self.versions or version in self.versions
 
 
 def load_gold(path: Path) -> tuple[GoldCase, ...]:

@@ -221,7 +221,9 @@ def _gold(cases: Sequence[GoldCase], findings: Sequence[Finding]) -> list[GoldCh
     checks = []
     for case in cases:
         finding = by_advisory.get(case.advisory)
-        evidence = finding.evidence if finding else None
+        if finding is None or not case.applies_to(finding.package.version):
+            continue  # not in this scan, or the answer is for another version
+        evidence = finding.evidence
         notes = " ".join(evidence.notes) if evidence else ""
         if evidence is None or not (evidence.symbol_model or any(m in notes for m in _ASKED)):
             continue  # not in this scan, or the model was never asked

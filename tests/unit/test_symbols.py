@@ -125,8 +125,10 @@ def test_apply_none_match_and_rejected() -> None:
 
 def test_gold_file_loads_and_is_well_formed() -> None:
     cases = load_gold(GOLD)
-    assert len(cases) == 13
-    assert len({c.advisory for c in cases}) == 13
+    assert len(cases) == 14
+    # one advisory may have one answer per installed version, never two for the same version
+    keys = [(c.advisory, v) for c in cases for v in (c.versions or ("*",))]
+    assert len(keys) == len(set(keys)) == 14
     for case in cases:
         if case.expected != "none":
             assert set(case.must_include) <= set(case.expected)

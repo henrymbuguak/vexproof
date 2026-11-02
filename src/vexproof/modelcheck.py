@@ -117,6 +117,9 @@ def run_gold(
         if finding is None or finding.evidence is None or not finding.evidence.candidates:
             rows.append(GoldRow(case, "missing", detail="not in findings or no candidates"))
             continue
+        if not case.applies_to(finding.package.version):
+            rows.append(GoldRow(case, "missing", detail="this answer is for another version"))
+            continue
         try:
             outcome: Verified | Rejected = verify(pick_symbols(finding, stack.caller), finding)
         except BudgetExceededError:

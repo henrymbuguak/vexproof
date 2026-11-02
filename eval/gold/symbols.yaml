@@ -1,7 +1,8 @@
 # Gold labels for symbol selection: which shortlisted function each advisory is about.
 #
 # Each answer was established from the advisory's own text and the fix commit, on the
-# Shopping Cart scan (Django 2.0, Pillow 4.3.0), before any model was run.
+# Shopping Cart scan (Django 2.0, Pillow 4.3.0), before any model was run. An answer that
+# depends on the installed code names its `versions`; it is only applied to those.
 #
 # A pick is correct when:
 #   - expected is "none": the model reports that no candidate matches (none_match), or
@@ -21,8 +22,16 @@ cases:
     why: CVE-2021-27922 is about the ICNS container; the shared commit also fixes ICO.
   - advisory: GHSA-f4w8-cv6p-x6r5
     package: pillow
+    versions: ["4.3.0"]
     expected: none
     why: CVE-2021-27921 is about the BLP container; BlpImagePlugin does not exist in 4.3.0.
+  - advisory: GHSA-f4w8-cv6p-x6r5
+    package: pillow
+    versions: ["6.2.2"]
+    expected: [PIL.BlpImagePlugin.BLP1Decoder._decode_jpeg_stream]
+    why: >-
+      Same advisory on justdjango's Pillow 6.2.2, which has BlpImagePlugin: the shared fix
+      (756fff33) adds the size check after JpegImageFile(data) in BLP1Decoder._decode_jpeg_stream.
   - advisory: GHSA-5x94-69rx-g8h2
     package: pillow
     expected: [PIL.FontFile.FontFile.compile]

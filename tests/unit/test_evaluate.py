@@ -205,3 +205,18 @@ def test_markdown_when_sound_and_minimal() -> None:
 def test_bad_inputs(loader: Any, data: dict[str, Any], message: str) -> None:
     with pytest.raises(IngestError, match=message):
         loader(data)
+
+
+def test_gold_answers_apply_only_to_their_versions() -> None:
+    blp = finding("GHSA-blp", picks=("PIL.BlpImagePlugin.f",), model="m")  # Pillow 4.3.0
+    record = load_record({"findings": [blp.model_dump(mode="json")]})
+    other = GoldCase(
+        advisory="GHSA-blp", package="pillow", expected="none", versions=("6.2.2",), why="w"
+    )
+    this = GoldCase(
+        advisory="GHSA-blp", package="pillow", expected=("PIL.BlpImagePlugin.f",), why="w"
+    )
+    gold = evaluate(record, _observation(), (other, this)).gold
+    assert [(g.case, g.correct) for g in gold] == [(this, True)]
+    assert this.applies_to("6.2.2")
+    assert not other.applies_to("4.3.0")

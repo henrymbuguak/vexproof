@@ -45,8 +45,10 @@ def test_ping_falls_back_to_chat_then_gives_up(tmp_path: Path) -> None:
 
 def test_run_gold_scores_each_case(tmp_path: Path) -> None:
     stack, live = scripted_stack([pick([ICO], QUOTE)], tmp_path)
-    report = run_gold([ICO_CASE, ABSENT], [ico_finding()], stack)
-    assert [row.result for row in report.rows] == ["correct", "missing"]
+    elsewhere = ICO_CASE.model_copy(update={"versions": ("0.0.1",)})  # for another version
+    report = run_gold([ICO_CASE, ABSENT, elsewhere], [ico_finding()], stack)
+    assert [row.result for row in report.rows] == ["correct", "missing", "missing"]
+    assert report.rows[2].detail == "this answer is for another version"
     assert report.rows[0].selected == (ICO,)
     assert (report.scored, report.accuracy, report.go) == (1, 1.0, True)
     assert len(live.requests) == 1
