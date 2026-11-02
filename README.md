@@ -15,22 +15,49 @@
 > cannot: it identifies the vulnerable function in each fix commit and judges call-path steps
 > that the code alone cannot settle.
 
+<!-- Demo video: replace this comment with **[Watch the 3-minute demo](VIDEO_URL)** -->
+
+![The web app showing a verified call path from the shop's admin code to Pillow's vulnerable IcoFile.frame](docs/images/call-path.png)
+
+*A real result: seven steps, each checked at the file and line shown, from the shop's admin
+upload form to the function with the bug. Every step is certain, so no model judgment was
+needed for this path.*
+
+**See it in a minute, with no API key and no model:**
+
+```bash
+git clone https://github.com/henrymbuguak/vexproof.git && cd vexproof
+uv sync --locked --all-groups
+uv run vexproof serve      # open http://127.0.0.1:8000 and choose Demo result
+```
+
 ---
 
 ## The problem
 
-Dependency scanners match **versions**, not **code**. If your project installs a version of a
-package that has a known vulnerability, the scanner raises an alert, whether or not your code
-can ever reach the vulnerable function.
+Dependency scanners check **versions**, not **code**.
 
-The result is noise that teams cannot act on. Scanning a small Django shop (one of the test
-projects) produces **94 alerts**. vexproof settles 28 of them with evidence:
+A security advisory says, in effect: *"Pillow versions before 8.1.2 have a bug in the function
+that reads ICO images."* A scanner checks only the first half of that sentence. If your project
+installs Pillow 4.3.0, it raises an alert. It never checks the second half: **does your code
+ever call the function that has the bug,** directly or through the libraries it uses? If it
+does not, nobody can trigger the bug through your application, and the alert is noise.
 
-- **14 are reachable.** vexproof shows a verified call path from the shop's code to each
-  vulnerable function.
-- **14 cannot affect the shop.** It never loads the module that holds the vulnerable code.
+Scanners cannot tell those two cases apart, so teams get long lists of alerts and no way to
+know which ones matter. vexproof answers the second half of the question, and shows its
+evidence.
+
+For example, a scan of a small Django shop (one of the test projects) produces **94 alerts**.
+vexproof settles 28 of them:
+
+- **14 are reachable.** For each one, vexproof shows the **call path**: the chain of function
+  calls, file by file and line by line, that leads from the shop's own code to the function
+  with the bug. The ICO bug above is one of them: the shop's admin page accepts product image
+  uploads, and Pillow reads each upload with whichever decoder matches the file, ICO included.
+- **14 cannot affect the shop.** The shop never loads the part of the package that contains
+  the bug, so nothing can call it.
 - **66 stay open for review,** each with the reason vexproof could not decide. vexproof never
-  clears an alert it cannot prove.
+  marks an alert as harmless unless it can prove it.
 
 ### Why it matters
 
@@ -71,7 +98,7 @@ flowchart TB
     end
     subgraph prove ["3. Prove and report"]
         direction LR
-        G[Module closure clears,<br/>call-path search] --> H{{Muse Spark reviews<br/>uncertain steps}} --> I[Verifier re-checks<br/>every step] --> J[Priority, upgrade plan,<br/>OpenVEX, web app]
+        G[Clear unloaded modules,<br/>search call paths] --> H{{Muse Spark reviews<br/>uncertain steps}} --> I[Verifier re-checks<br/>every step] --> J[Priority, upgrade plan,<br/>OpenVEX, web app]
     end
     collect --> pick --> prove
 ```
@@ -85,12 +112,16 @@ flowchart TB
    to justify the pick. The verifier rejects any name that is not a real candidate and any quote
    that is not in the advisory.
 4. **Prove or clear.**
-   - **Cleared** when your code never loads the module that holds the vulnerable function.
-     vexproof works this out from imports, dotted strings and hand-written framework rules, and
-     refuses to clear if anything loads code by a name it cannot see.
-   - **Reachable** when it finds a call path from your code to the vulnerable function. Certain
-     steps need no model. Muse Spark judges uncertain steps (a method call on an object of
-     unknown type), and the verifier re-checks every step.
+   - **Cleared** when your code never loads the module (the Python file) that holds the
+     vulnerable function. vexproof works this out from your imports, from module names written
+     as text in settings (such as Django's `INSTALLED_APPS`), and from hand-written rules for how
+     frameworks load code. If anything loads code by a name vexproof cannot see, it refuses to
+     clear.
+   - **Reachable** when it finds a call path from your code to the vulnerable function. Most
+     steps are **certain**: the code shows exactly which function gets called. Some are
+     **uncertain**: a method is called on an object whose type Python only knows at run time.
+     Muse Spark judges whether each uncertain step is plausible, and the verifier re-checks every
+     step against the code.
    - **Open** when neither applies. vexproof lists open alerts with a reason and never drops
      them silently.
 5. **Decide what to fix first.** vexproof ranks alerts by evidence, exploit signals and your
@@ -125,6 +156,13 @@ and every function that ran. Then I compared the scan with that record.
 | Muse Spark picks matching hand-checked answers | 13 of 13 | 9 of 9 | 22 of 22 |
 | Estimated model cost of a scan without recorded answers | $0.95 | $3.61 | |
 
+The cost row is an estimate, not a bill. vexproof counts every input and output token the scan
+sends to Muse Spark, including answers replayed from its recordings, and prices them at
+$1.25 per million input tokens and $4.25 per million output tokens (`VEXPROOF_PRICE_INPUT_PER_M`
+and `VEXPROOF_PRICE_OUTPUT_PER_M`). It shows what a team would pay at those per-token rates.
+Through Ollama, my runs cost nothing extra per call. The shop scan used about 228,000 input and
+156,000 output tokens.
+
 Full reports: [eval/results/shop-1aa90f6.md](eval/results/shop-1aa90f6.md) and
 [eval/results/justdjango-260952e.md](eval/results/justdjango-260952e.md). The Django shop is
 [henrymbuguak/Shopping-Cart-Using-Django-2.0-and-Python-3.6](https://github.com/henrymbuguak/Shopping-Cart-Using-Django-2.0-and-Python-3.6)
@@ -157,6 +195,37 @@ call path from your code (all hops certain)
 
 When the workload uploaded an ICO image through the admin, `IcoFile.frame` ran, which confirms
 the path.
+
+### What Muse Spark adds
+
+To measure the model's contribution, compare the shop scan with what the same pipeline would
+do without it: follow **every** function the fix changed, and leave every uncertain step
+unreviewed. (`--no-model` goes further: it skips call-path search entirely and proves nothing
+reachable, which says more about the design than about the model.) I counted these numbers
+from [examples/demo/findings.json](examples/demo/findings.json).
+
+| In the shop scan, Muse Spark… | Alerts | Without the model |
+| --- | --- | --- |
+| Reviewed an uncertain step, so vexproof could prove the alert reachable | 3 | The alerts stay open for review |
+| Picked the one function the advisory is about, out of several the fix changed | 11 | Call paths lead to any changed function, including ones the advisory does not mention |
+| Found that **none** of the changed functions matches the advisory | 4 | vexproof follows an unrelated function and may report a path that has nothing to do with the bug |
+| Changed a clear | 0 | Clears rest on module loading alone |
+
+Three cases show each job:
+
+- **Proving an open alert reachable: GHSA-5hg3-6c2f-f3wr** (Django open redirect, EPSS 25%, priority
+  *fix now*). The path runs from `MIDDLEWARE` in `myshop/settings.py` into `CommonMiddleware`.
+  One step goes through Django's middleware dispatch, where the object's type is only known at
+  run time. Muse Spark judged that step plausible, explaining that Django calls every class
+  listed in `MIDDLEWARE`. The verifier then re-checked every step. Without the model, this alert
+  stays in *review*.
+- **Choosing among changed functions: GHSA-95q3-8gr9-gm8w.** Pillow's commit `756fff33` fixes ICO, ICNS
+  and BLP bugs at once. Muse Spark picked the ICO function and quoted the advisory to justify
+  the pick.
+- **Rejecting all of them: GHSA-f4w8-cv6p-x6r5.** This BLP advisory points at the same commit.
+  Pillow 4.3.0 has no BLP decoder, so the only changed functions it contains are the ICO and
+  ICNS ones. Muse Spark answered that no candidate matches. Without it, vexproof would follow `IcoFile.frame` and could report the ICO path above
+  as evidence for a BLP bug.
 
 ### What a team gets
 
@@ -221,7 +290,7 @@ uv run vexproof serve
 ```
 
 Open <http://127.0.0.1:8000> and choose **Demo result**. From there, open an alert such as
-GHSA-95q3 to see its call path, and choose **How this was checked** to see the evaluation.
+GHSA-95q3-8gr9-gm8w to see its call path, and choose **How this was checked** to see the evaluation.
 Press `Ctrl+C` to stop the server.
 
 The same result works from the command line:
@@ -320,7 +389,7 @@ on `localhost`, the container reaches it on your computer automatically.
 
 | Level | Meaning | How vexproof decides |
 | --- | --- | --- |
-| L0 | Your code never imports the package: **cleared** | The import closure of your code, including framework strings such as `INSTALLED_APPS`, with conservative rules for plugins and dynamic imports |
+| L0 | Your code never imports the package: **cleared** | vexproof follows every import from your code, directly and through other packages, including module names in settings such as `INSTALLED_APPS`. It applies cautious rules for plugins and imports built at run time |
 | L1 | The functions the fix changed exist in your installed version | vexproof fetches the fix commit with git, diffs it, maps the changes to functions, and checks them against the installed package |
 | L2 | Only the changed module is known | Module-level changes, or changed functions that your version does not contain |
 | L3 | Needs review | No fix commit, a fix in native code, or code missing from the package |
@@ -369,17 +438,39 @@ function call. `vexproof eval` compares a scan with that record:
 | Check | Fails the evaluation |
 | --- | --- |
 | A cleared alert's module loaded at run time | Yes |
-| A module loaded at run time is missing from the scan's closure | Yes |
+| A module loaded at run time is missing from the modules the scan said could load | Yes |
 | A reachable alert's vulnerable function ran | No: it confirms the path |
 | An open alert's picked function ran | No: it marks a lead that path search missed |
 | Function picks against hand-checked answers, and model cost | No: reported |
 
 To rebuild the observations from scratch, run `eval/dynamic/observe_shop.sh` and
-`eval/dynamic/observe_justdjango.sh`. The hand-checked answers live in
-[eval/gold/symbols.yaml](eval/gold/symbols.yaml).
+`eval/dynamic/observe_justdjango.sh`.
+
+The hand-checked answers live in [eval/gold/symbols.yaml](eval/gold/symbols.yaml): 22 cases,
+each with the reason for its answer. The set is small, so read 22 of 22 as "small,
+hand-checked and reproducible", not as a general accuracy rate.
+
+I added one label after the model disagreed with the answer key, and that change deserves an
+explanation. On October 29, before running any model, I labelled GHSA-f4w8-cv6p-x6r5 (a bug in
+Pillow's BLP decoder) from the shop, which installs Pillow 4.3.0. The answer there is "none":
+the shared fix commit `756fff33` changes BLP, ICO and ICNS code, but Pillow 4.3.0 has no BLP
+decoder, so no installed function can be the bug. That label is unchanged.
+
+The justdjango project installs Pillow 6.2.2. There, Muse Spark picked
+`BLP1Decoder._decode_jpeg_stream`, and the evaluation marked the pick wrong against the old
+"none" label. Before changing anything, I checked the facts independently of the model:
+
+- The Pillow 4.3.0 wheel on PyPI contains no `BlpImagePlugin` module; the 6.2.2 wheel does.
+- In 6.2.2, commit `756fff33` adds the missing size check to `BLP1Decoder._decode_jpeg_stream`,
+  the function the advisory describes.
+
+The right answer depends on the installed version, so each label now names the versions it
+holds for: "none" for 4.3.0, `BLP1Decoder._decode_jpeg_stream` for 6.2.2. The change sits in its
+own commit, `eed7e29` ("fix(eval): gold answers name the versions they hold for"), so anyone can
+review it. Muse Spark's answer on the shop ("none") matched the original label throughout.
 
 The evaluation found real gaps, and I fixed each one with a test. For example, Django loads
-migration files such as `0001_initial.py` by name, and the closure had skipped them. A scan of a
+migration files such as `0001_initial.py` by name, and the scan had missed them. A scan of a
 Flask project exposed a wrong clear for a package whose import name differs from its
 distribution name, and vexproof now refuses to clear in that case.
 
@@ -407,7 +498,7 @@ distribution name, and vexproof now refuses to clear in that case.
 | --- | --- |
 | `src/vexproof/ingest/`, `sources/` | SBOMs, repositories at a commit, package files |
 | `src/vexproof/intel/` | OSV, CISA KEV and EPSS clients |
-| `src/vexproof/static/` | Import and module closure, code index, framework rules |
+| `src/vexproof/static/` | Which modules your code can load, the code index, framework rules |
 | `src/vexproof/symbols/`, `llm/`, `prompts/` | Function picks with Muse Spark, the verifier, recorded model answers, versioned prompts |
 | `src/vexproof/evidence/` | Clears and call-path search, review and verification |
 | `src/vexproof/report/` | Priority, upgrade plan, OpenVEX and HTML |
