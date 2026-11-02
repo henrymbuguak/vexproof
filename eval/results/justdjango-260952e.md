@@ -12,7 +12,7 @@ Oracle: the project run under `justdjango.py` (38 steps) on Python 3.8.20 with d
 | Modules loaded at run time but missing from the closure | 0 of 776 (plus 89 with no Python source file to scan) |
 | Reachable alerts whose vulnerable function ran | 12 of 15 (3 not exercised by the workload) |
 | Open alerts whose picked function ran | 8 |
-| Function picks matching gold labels | 8 of 9 |
+| Function picks matching gold labels | 9 of 9 |
 | Model cost of a scan without recordings | $3.6147 total, $0.02638 per alert |
 | Scan time | 16 s |
 
@@ -166,7 +166,7 @@ Leads the path search missed; running a function does not by itself mean the vul
 
 - GHSA-95q3-8gr9-gm8w: correct (picked PIL.IcoImagePlugin.IcoFile.frame)
 - GHSA-3wvg-mj6g-m9cv: correct (picked PIL.IcnsImagePlugin.read_png_or_jpeg2000)
-- GHSA-f4w8-cv6p-x6r5: WRONG (picked PIL.BlpImagePlugin.BLP1Decoder._decode_jpeg_stream)
+- GHSA-f4w8-cv6p-x6r5: correct (picked PIL.BlpImagePlugin.BLP1Decoder._decode_jpeg_stream)
 - GHSA-5x94-69rx-g8h2: correct (picked PIL.FontFile.FontFile.compile)
 - GHSA-45hq-cxwh-f6vc: correct (picked PIL.BdfFontFile.bdf_char)
 - GHSA-9hw9-ch79-4vh6: correct (picked PIL.ImageCms.ImageCmsTransform.apply)

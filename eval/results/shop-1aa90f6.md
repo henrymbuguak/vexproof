@@ -9,7 +9,7 @@ Oracle: the project run under `shop.py` (30 steps) on Python 3.8.20 with django 
 | Alerts | 94 |
 | Decided with evidence | 28 (29.8%): 14 cleared, 14 reachable |
 | Clears contradicted by the run (module loaded) | 0 of 14 |
-| Modules loaded at run time but missing from the closure | 0 of 470 (plus 1 compiled extension(s) with no source) |
+| Modules loaded at run time but missing from the closure | 0 of 470 (plus 1 with no Python source file to scan) |
 | Reachable alerts whose vulnerable function ran | 13 of 14 (1 not exercised by the workload) |
 | Open alerts whose picked function ran | 1 |
 | Function picks matching gold labels | 13 of 13 |
@@ -56,7 +56,7 @@ Oracle: the project run under `shop.py` (30 steps) on Python 3.8.20 with django 
 
 ## Loaded but not in the closure
 
-- `PIL._imaging` (compiled extension: no source to scan)
+- `PIL._imaging` (no Python source file: a compiled extension, a namespace package or an alias)
 
 ## Open alerts whose picked function ran
 
