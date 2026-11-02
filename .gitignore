@@ -28,3 +28,6 @@ eval/workspace/
 
 # Ad-hoc scan output (eval results live in eval/results/)
 /findings*.json
+/report*.html
+/vex*.json
+/openvex*.json
