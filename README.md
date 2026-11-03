@@ -9,8 +9,9 @@
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **Built during the Meta Global AI Developer Hackathon, October 26 – November 4, 2026
-> (Indie Developer track).** The first commit dates from October 27, 2026, and the commit history
+> **Built during the Meta Global AI Developer Hackathon, October 26 – November 4, 2026.**
+> Track: Indie Developer · Problem statement: Push the Frontier, with Muse Spark applied to
+> vulnerability triage, a hard problem in software. The first commit dates from October 27, 2026, and the commit history
 > records every step from there. Muse Spark, Meta's model, does the reading that static analysis
 > cannot: it identifies the vulnerable function in each fix commit and judges call-path steps
 > that the code alone cannot settle.
@@ -158,10 +159,11 @@ and every function that ran. Then I compared the scan with that record.
 
 The cost row is an estimate, not a bill. vexproof counts every input and output token the scan
 sends to Muse Spark, including answers replayed from its recordings, and prices them at
-$1.25 per million input tokens and $4.25 per million output tokens (`VEXPROOF_PRICE_INPUT_PER_M`
-and `VEXPROOF_PRICE_OUTPUT_PER_M`). It shows what a team would pay at those per-token rates.
-Through Ollama, my runs cost nothing extra per call. The shop scan used about 228,000 input and
-156,000 output tokens.
+$1.25 per million input tokens and $4.25 per million output tokens. Those are rates I set in
+`VEXPROOF_PRICE_INPUT_PER_M` and `VEXPROOF_PRICE_OUTPUT_PER_M` to approximate a per-token API.
+My runs went through Ollama's cloud service, which does not bill per token, so the row shows
+what the same tokens would cost on an API at those rates. The shop scan used about 228,000 input
+and 156,000 output tokens; multiply by your provider's prices for your own estimate.
 
 Full reports: [eval/results/shop-1aa90f6.md](eval/results/shop-1aa90f6.md) and
 [eval/results/justdjango-260952e.md](eval/results/justdjango-260952e.md). The Django shop is
@@ -451,7 +453,8 @@ each with the reason for its answer. The set is small, so read 22 of 22 as "smal
 hand-checked and reproducible", not as a general accuracy rate.
 
 I added one label after the model disagreed with the answer key, and that change deserves an
-explanation. On October 29, before running any model, I labelled GHSA-f4w8-cv6p-x6r5 (a bug in
+explanation. On October 29, in the commit that created the answer key (`de11066`), I labelled
+GHSA-f4w8-cv6p-x6r5 (a bug in
 Pillow's BLP decoder) from the shop, which installs Pillow 4.3.0. The answer there is "none":
 the shared fix commit `756fff33` changes BLP, ICO and ICNS code, but Pillow 4.3.0 has no BLP
 decoder, so no installed function can be the bug. That label is unchanged.
@@ -461,8 +464,8 @@ The justdjango project installs Pillow 6.2.2. There, Muse Spark picked
 "none" label. Before changing anything, I checked the facts independently of the model:
 
 - The Pillow 4.3.0 wheel on PyPI contains no `BlpImagePlugin` module; the 6.2.2 wheel does.
-- In 6.2.2, commit `756fff33` adds the missing size check to `BLP1Decoder._decode_jpeg_stream`,
-  the function the advisory describes.
+- Commit `756fff33` adds the missing size check to `BLP1Decoder._decode_jpeg_stream`, the
+  function the advisory describes, and that function exists, unpatched, in 6.2.2.
 
 The right answer depends on the installed version, so each label now names the versions it
 holds for: "none" for 4.3.0, `BLP1Decoder._decode_jpeg_stream` for 6.2.2. The change sits in its
@@ -521,19 +524,40 @@ with `uv run pre-commit install`.
 
 ## Built during the Meta Global AI Developer Hackathon
 
-I wrote all the code in this repository during the event (October 26 – November 4, 2026).
+### What I built and what I used
+
+**Built during the event (October 26 – November 4, 2026):** everything in this repository. That
+covers the scanner, the verifier, the prompts, the web app, the Docker image, the evaluation
+tools and workloads, the hand-checked answers, the recorded scans and these docs. The commit
+history dates every step, starting on October 27.
+
+**Test subjects, not part of the submission.** The evaluation scans and runs two existing
+projects. Neither is copied into this repository; the scripts in `eval/dynamic/` clone each one
+at a pinned commit into a throwaway directory.
+
+- **The Django shop**,
+  [henrymbuguak/Shopping-Cart-Using-Django-2.0-and-Python-3.6](https://github.com/henrymbuguak/Shopping-Cart-Using-Django-2.0-and-Python-3.6),
+  is a tutorial project I published in December 2017 and January 2018. I chose it because its
+  old, pinned dependencies (Django 2.0, Pillow 4.3.0) carry many known advisories. Nothing in it
+  changed for the hackathon.
+- **[justdjango/django-ecommerce](https://github.com/justdjango/django-ecommerce)** is a
+  third-party project under GPL-3.0. vexproof only scans it, and the evaluation runs it in a
+  throwaway environment.
+
+**Used, not built:**
 
 - **Meta models:** Muse Spark Open (`muse-spark-open:cloud`), served by Ollama, picks the
   vulnerable function for each alert and reviews uncertain call-path steps. Every result in this
   repository comes from Muse Spark Open. I did not use the hosted Meta Model API: I could not
   complete its billing setup during the event. The OpenAI-compatible client can target it, but
-  that path is untested. Prompts live as versioned files in `src/vexproof/prompts/`.
+  that path is untested. The prompts are my own, versioned in `src/vexproof/prompts/`.
 - **Third-party libraries:** pydantic, pydantic-settings, httpx, stamina, packaging, cvss,
   PyYAML, typer, rich, structlog, unidiff and openai; FastAPI, Jinja2 and uvicorn for the web
   app. `pyproject.toml` and `uv.lock` list exact versions.
 - **External tools:** [Syft](https://github.com/anchore/syft) for SBOMs;
   [Ollama](https://ollama.com) to serve Meta's open-weight models; uv-managed CPython 3.8 to run
-  the test projects during evaluation; Ubuntu 24.04 as the Docker base image.
+  the test projects during evaluation; Ubuntu 24.04 as the Docker base image; axe-core and
+  Playwright to test the web app's accessibility.
 - **Data sources:** [OSV.dev](https://osv.dev) (including GitHub Security Advisories and the
   PyPA advisory database), [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog),
   [FIRST EPSS](https://www.first.org/epss/), [PyPI](https://pypi.org) (package files, verified by
