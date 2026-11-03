@@ -16,7 +16,7 @@
 > cannot: it identifies the vulnerable function in each fix commit and judges call-path steps
 > that the code alone cannot settle.
 
-<!-- Demo video: replace this comment with **[Watch the 3-minute demo](VIDEO_URL)** -->
+**[▶ Watch the 3-minute demo video](https://www.youtube.com/watch?v=degGH4wwkEk)**
 
 ![The web app showing a verified call path from the shop's admin code to Pillow's vulnerable IcoFile.frame](docs/images/call-path.png)
 
