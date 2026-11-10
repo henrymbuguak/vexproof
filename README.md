@@ -16,7 +16,9 @@
 > cannot: it identifies the vulnerable function in each fix commit and judges call-path steps
 > that the code alone cannot settle.
 
-**[▶ Watch the 3-minute demo video](https://www.youtube.com/watch?v=degGH4wwkEk)**
+**[▶ Watch the 3-minute demo video](https://www.youtube.com/watch?v=degGH4wwkEk)** ·
+**[Read the case study](https://hlab.tech/posts/how-i-built-vexproof-python-vulnerability-reachability/)**:
+how I built it and evaluated it against the running projects.
 
 ![The web app showing a verified call path from the shop's admin code to Pillow's vulnerable IcoFile.frame](docs/images/call-path.png)
 
