@@ -5,9 +5,20 @@
 
 [![Meta Global AI Developer Hackathon 2026](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-Oct%2026%20%E2%80%93%20Nov%204%2C%202026-0467DF)](#built-during-the-meta-global-ai-developer-hackathon)
 [![Model: Muse Spark Open](https://img.shields.io/badge/model-Muse%20Spark%20Open-0467DF)](#5-configure-muse-spark)
-[![ci](https://github.com/henrymbuguak/vexproof/actions/workflows/ci.yml/badge.svg)](https://github.com/henrymbuguak/vexproof/actions/workflows/ci.yml)
+[![ci](https://github.com/henrymbuguak/vexproof/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/henrymbuguak/vexproof/actions/workflows/ci.yml?query=branch%3Adevelop)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+> [!IMPORTANT]
+> **You are on `develop`, where vexproof is being upgraded.** The version shown in the
+> [demo video](https://www.youtube.com/watch?v=degGH4wwkEk) and the
+> [hlab.tech case study](https://hlab.tech/posts/how-i-built-vexproof-python-vulnerability-reachability/)
+> is the [`v0.1.0` tag](https://github.com/henrymbuguak/vexproof/tree/v0.1.0), kept unchanged on
+> the [`main` branch](https://github.com/henrymbuguak/vexproof/tree/main). To get exactly that version:
+>
+> ```bash
+> git clone --branch v0.1.0 https://github.com/henrymbuguak/vexproof.git
+> ```
 
 > **Built during the Meta Global AI Developer Hackathon, October 26 – November 4, 2026.**
 > Track: Indie Developer · Problem statement: Push the Frontier, with Muse Spark applied to
