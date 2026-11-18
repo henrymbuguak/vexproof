@@ -219,14 +219,15 @@ class ModelRequest:
     purpose: str
     prompt_version: str
     system: str
-    messages: tuple[Message, ...]      # replaces the single `user` string
-    tools: tuple[ToolSpec, ...] = ()   # empty for plain structured calls
+    messages: tuple[Message, ...]  # replaces the single `user` string
+    tools: tuple[ToolSpec, ...] = ()  # empty for plain structured calls
     schema_name: str = ""
     schema: dict[str, Any] = field(default_factory=dict, hash=False)
-    cache_points: tuple[int, ...] = () # message indexes that end a cacheable prefix
+    cache_points: tuple[int, ...] = ()  # message indexes that end a cacheable prefix
     max_output_tokens: int = 2000
     # key(model) must hash messages and tools as well as the current fields;
     # cache_points are a cost hint and stay out of the key
+
 
 @dataclass(frozen=True)
 class ModelResponse:
@@ -240,6 +241,7 @@ class ModelResponse:
     output_tokens: int = 0
     latency_ms: int = 0
     replayed: bool = False
+
 
 # llm/anthropic.py: AnthropicTransport implements Transport with the Anthropic SDK
 # llm/meta.py: unchanged behaviour, adapted to the new request shape
@@ -404,23 +406,26 @@ Five record types carry everything, and each verdict can be rebuilt from its rec
 
 ```python
 class FunctionPick(BaseModel):
-    selected: list[str]            # each must be one of the supplied candidates
+    selected: list[str]  # each must be one of the supplied candidates
     none_match: bool
-    advisory_quote: str            # must appear verbatim in the advisory
+    advisory_quote: str  # must appear verbatim in the advisory
     confidence: Literal["high", "medium", "low"]
 
+
 class HopProposal(BaseModel):
-    caller: str                    # qualified name
-    callee: str                    # qualified name; the verifier finds file and line
+    caller: str  # qualified name
+    callee: str  # qualified name; the verifier finds file and line
+
 
 class EdgeProposal(BaseModel):
     kind: Literal["signal", "registry", "url", "settings", "template"]
-    file: str                      # path inside the scan root
-    name: str                      # receiver, key, view, dotted path or filter
-    target: str                    # qualified name the edge leads to
+    file: str  # path inside the scan root
+    name: str  # receiver, key, view, dotted path or filter
+    target: str  # qualified name the edge leads to
+
 
 class AcceptPath(BaseModel):
-    reasons: list[str]             # one per uncertain hop, in path order
+    reasons: list[str]  # one per uncertain hop, in path order
 ```
 
 - Fields the verifier can check (candidate names, quote, caller, callee, edge file and name) are required. Free-text reasoning is optional and never used for a verdict.
