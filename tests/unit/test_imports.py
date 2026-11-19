@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from vexproof.static.imports import scan_source
 from vexproof.static.project import is_test_path, scan_project
 
@@ -96,3 +98,57 @@ def test_project_scan_separates_tests_and_skips_envs(tmp_path: Path) -> None:
     assert "pytest" not in scan.production.imports
     assert not {"should_not_appear", "also_not", "nope"} & scan.production.imports
     assert scan.computed_dynamic_imports == ["src/lib/__init__.py:2"]
+
+
+# -- what a computed import's name is made of (ADR 0022) ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("call", "kind", "prefix", "suffix"),
+    [
+        # passed in as it is: the census's django-compressor, cacheops, boto3, django-extensions
+        ("import_module(mod_name)", "plain", "", ""),
+        ("__import__(name)", "plain", "", ""),
+        ("import_string(self.backend)", "plain", "", ""),
+        ("import_module(BACKENDS[key])", "plain", "", ""),
+        ("import_module(getattr(settings, 'CACHEOPS_BACKEND'))", "plain", "", ""),
+        # built with literal text around a variable part
+        ('import_module("%s.base" % engine)', "pattern", "", ".base"),
+        ('import_module("pkg.backends." + name)', "pattern", "pkg.backends.", ""),
+        ('import_module("pkg." + name + ".models")', "pattern", "pkg.", ".models"),
+        ('import_module(f"pkg.plugins.{name}")', "pattern", "pkg.plugins.", ""),
+        ('import_module("pkg.{}.tasks".format(app))', "pattern", "pkg.", ".tasks"),
+        ('import_module("%(app)s.signals" % values)', "pattern", "", ".signals"),
+        # __name__ and __package__ are known: the module's own name
+        ('import_module(f"{__name__}.{name}")', "pattern", "app.views.", ""),
+        ('import_module(__package__ + "." + name)', "pattern", "app.", ""),
+        # built with nothing literal to match
+        ('import_module("%s" % path)', "opaque", "", ""),
+        ('import_module("".join(parts))', "opaque", "", ""),
+        ('import_module(f"{a}{b}")', "opaque", "", ""),
+        ("import_module(a + b)", "opaque", "", ""),
+    ],
+)
+def test_computed_imports_are_classified(call: str, kind: str, prefix: str, suffix: str) -> None:
+    found = scan_source(f"import importlib\n{call}\n", "app.views", is_package=False)
+    assert found.dynamic_computed == [2]
+    (computed,) = found.computed
+    assert (computed.line, computed.kind, computed.prefix, computed.suffix) == (
+        2,
+        kind,
+        prefix,
+        suffix,
+    )
+
+
+def test_a_pattern_matches_only_modules_with_both_ends() -> None:
+    (backends,) = scan_source('import_module("pkg.backends." + name)\n', "x").computed
+    assert backends.matches("pkg.backends.redis")
+    assert backends.matches("pkg.backends.sql.postgres")
+    assert not backends.matches("pkg.backends.")  # the variable part is never empty
+    assert not backends.matches("pkg.models")
+    (base,) = scan_source('import_module("%s.base" % engine)\n', "x").computed
+    assert base.matches("django.db.backends.sqlite3.base")
+    assert not base.matches("django.db.backends.sqlite3.operations")
+    (plain,) = scan_source("import_module(name)\n", "x").computed
+    assert not plain.matches("anything")  # only patterns match by name

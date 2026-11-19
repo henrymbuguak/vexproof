@@ -5,6 +5,7 @@ from pathlib import Path
 from tests.codebase import LIBRARY, PILLOW, PROJECT, build, write_project
 from tests.trees import make_tree
 from vexproof.domain import Package
+from vexproof.sources.tree import SourceTree
 from vexproof.static.frameworks import django_rules, pillow_plugin_names, pillow_rules
 from vexproof.static.modules import module_reachability
 
@@ -142,3 +143,85 @@ def test_allauth_six_and_debug_toolbar_computed_imports_are_covered() -> None:
         "allauth.socialaccount.providers.google.urls",
     }
     assert list(allauth_rules(modules, {})) == []  # nothing when allauth's registry is unused
+
+
+# -- ADR 0022: the strict closure, the assumed closure, and what each rests on ------------------
+
+
+def _with_library(tmp_path: Path, files: dict[str, str]) -> dict[Package, SourceTree]:
+    lib = Package(name="plugins", version="2.0")
+    return {
+        PILLOW: make_tree(tmp_path / "sources", PILLOW, LIBRARY),
+        lib: make_tree(tmp_path / "sources", lib, files),
+    }
+
+
+PLUGINS = {
+    "plugins/__init__.py": "import importlib\n",
+    "plugins/loader.py": (
+        "import importlib\n\ndef load(name):\n    return importlib.import_module(name)\n"
+    ),
+    "plugins/backends/__init__.py": "",
+    "plugins/backends/redis.py": "import PIL.ImageMath\n",  # reached only if a pattern matches it
+    "plugins/patterned.py": (
+        "import importlib\n\ndef pick(x):\n"
+        '    return importlib.import_module("plugins.backends." + x)\n'
+    ),
+    "plugins/opaque.py": (
+        "import importlib\n\ndef pick(a, b):\n    return importlib.import_module(a + b)\n"
+    ),
+}
+
+
+def test_a_passed_in_name_blocks_only_strict_clears(tmp_path: Path) -> None:
+    trees = _with_library(tmp_path, PLUGINS)
+    project = {**PROJECT, "shop/settings.py": "import plugins.loader\n"}
+    reach = module_reachability(write_project(tmp_path / "p", project), trees, {})
+    assert reach.blockers  # strict: as before ADR 0022
+    assert reach.assumed_on == ["plugins.loader:4"]  # what an assumed clear rests on
+    assert reach.assumed_blockers == []  # nothing stops an assumed clear
+    assert reach.assumed_reached == {}  # a plain name adds no module
+
+
+def test_a_pattern_adds_its_matches_to_the_assumed_closure_only(tmp_path: Path) -> None:
+    trees = _with_library(tmp_path, PLUGINS)
+    project = {**PROJECT, "shop/settings.py": "import plugins.patterned\n"}
+    reach = module_reachability(write_project(tmp_path / "p", project), trees, {})
+    assert not reach.is_reached("plugins.backends.redis")  # not in the strict closure
+    assert reach.is_reached_assuming("plugins.backends.redis")
+    assert reach.assumed_reached["plugins.backends.redis"] == (
+        "matches a computed import's name pattern"
+    )
+    # and growth goes on from the match: what it imports is reached too
+    assert not reach.is_reached("PIL.ImageMath")
+    assert reach.is_reached_assuming("PIL.ImageMath")
+    assert reach.assumed_on == ["plugins.patterned:4"]
+
+
+def test_opaque_names_project_imports_and_unreadable_sources_block_both(tmp_path: Path) -> None:
+    trees = _with_library(tmp_path, PLUGINS)
+    opaque = {**PROJECT, "shop/settings.py": "import plugins.opaque\n"}
+    reach = module_reachability(write_project(tmp_path / "a", opaque), trees, {})
+    assert reach.assumed_blockers[0].startswith(
+        "reached code builds a module name with nothing literal to match: plugins.opaque:4"
+    )
+    in_project = {
+        **PROJECT,
+        "shop/settings.py": "import importlib\nimportlib.import_module(NAME)\n",
+    }
+    reach = module_reachability(write_project(tmp_path / "b", in_project), trees, {})
+    assert any("project code imports" in b for b in reach.assumed_blockers)
+    missing = Package(name="ghost", version="1.0")
+    reach = module_reachability(write_project(tmp_path / "c", PROJECT), trees, {missing: "404"})
+    assert any("could not read the source of ghost" in b for b in reach.assumed_blockers)
+
+
+def test_configuration_files_name_modules_for_both_closures(tmp_path: Path) -> None:
+    configured = {**PROJECT, "config/app.yaml": "cache:\n  backend: PIL.ImageMath\n"}
+    reach, _, _ = build(tmp_path / "a", project=configured)
+    assert reach.reached["PIL.ImageMath"] == "named in config/app.yaml"
+    assert reach.blockers == []  # a configuration file only widens the closure
+    # a test folder's configuration is not production configuration
+    in_tests = {**PROJECT, "tests/fixtures.yaml": "backend: PIL.ImageMath\n"}
+    reach, _, _ = build(tmp_path / "b", project=in_tests)
+    assert not reach.is_reached("PIL.ImageMath")
