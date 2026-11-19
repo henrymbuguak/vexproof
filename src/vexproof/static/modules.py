@@ -11,26 +11,39 @@ Over-approximation, on purpose. A module is reached when:
 - a framework rule says the framework loads it by a computed name (`frameworks.py`);
 - it is the parent package of a reached module.
 
-Clearing is refused outright when something could load modules the closure cannot see: a
-computed import that no framework rule covers, a package whose source could not be read, or
-project code that imports by computed name.
+A clear is refused when something could load modules the closure cannot see: a computed import
+that no framework rule covers, a package whose source could not be read, or project code that
+imports by computed name. Dotted names in the repository's configuration files join the closure
+too, and so does every module of a library that finds modules by listing them (ADR 0022).
+
+Each computed import is recorded with what its name is made of (plain, pattern or opaque) and
+whether its module lists packages or directories: facts a reviewer reads before writing a
+framework rule that covers it (ADR 0008).
 """
 
 from __future__ import annotations
 
 import json
+import os
+import re
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from vexproof.domain import Package
 from vexproof.sources.tree import SourceTree, module_name
 from vexproof.static.frameworks import COVERED_DYNAMIC_IMPORTS, RULES, covered_module
-from vexproof.static.imports import ModuleImports, scan_source
-from vexproof.static.project import import_path, is_test_path, python_files
+from vexproof.static.imports import ComputedImport, ModuleImports, scan_source
+from vexproof.static.project import (
+    MAX_FILE_BYTES,
+    SKIP_DIRS,
+    import_path,
+    is_test_path,
+    python_files,
+)
 
-_CACHE = "vexproof-modules.v3.json"  # v3: follows the tree manifest
+_CACHE = "vexproof-modules.v5.json"  # v5: relative and fromlist imports resolved; discovery
 PROJECT = "<project>"
 
 
@@ -74,6 +87,8 @@ def _scan_tree(tree: SourceTree) -> dict[str, ModuleImports]:
                 dynamic_computed=list(v["dynamic_computed"]),
                 string_refs=set(v["string_refs"]),
                 parsed=v["parsed"],
+                computed=[ComputedImport(**c) for c in v["computed"]],
+                discovers=v["discovers"],
             )
             for m, v in data.items()
         }
@@ -93,6 +108,11 @@ def _scan_tree(tree: SourceTree) -> dict[str, ModuleImports]:
             "dynamic_computed": s.dynamic_computed,
             "string_refs": sorted(s.string_refs),
             "parsed": s.parsed,
+            "computed": [
+                {"line": c.line, "kind": c.kind, "prefix": c.prefix, "suffix": c.suffix}
+                for c in s.computed
+            ],
+            "discovers": s.discovers,
         }
         for m, s in scans.items()
     }
@@ -130,12 +150,21 @@ def _load(
     return scans, computed
 
 
-def _close(reach: ModuleReach, scans: Mapping[str, ModuleImports]) -> None:
-    """Grow `reach.reached` from project code until no import, string or rule adds a module.
+Seed = tuple[str | None, str]  # a module to add, and why
 
-    Breadth-first, so each module's recorded reason is a shortest chain from project code:
-    `why()` then explains `django.contrib.auth.forms` through the admin your code mounts, not
-    through a test runner named in Django's default settings.
+
+def _close(
+    reach: ModuleReach,
+    scans: Mapping[str, ModuleImports],
+    seeds: Iterable[Seed] | None = None,
+) -> None:
+    """Grow `reach.reached` until no import, string or rule adds a module.
+
+    Without `seeds`, growth starts from project code, then the modules named in configuration
+    files are added; with them, growth continues from those modules. Breadth-first, so each
+    module's recorded reason is a shortest chain from project code: `why()` then explains
+    `django.contrib.auth.forms` through the admin your code mounts, not through a test runner
+    named in Django's default settings.
     """
     frontier: deque[str] = deque()
 
@@ -162,15 +191,27 @@ def _close(reach: ModuleReach, scans: Mapping[str, ModuleImports]) -> None:
                 return candidate
         return None
 
-    for module in sorted(reach.project_modules):
-        add(module, "project code")
+    if seeds is None:
+        for module in sorted(reach.project_modules):
+            add(module, "project code")
+    else:
+        for name, reason in seeds:
+            add(resolve(name) if name else None, reason)
     while frontier:
         while frontier:
             module = frontier.popleft()
             scan = scans[module]
             for name in sorted(scan.imports | scan.dynamic_literals):
                 add(resolve(name), f"imported by {module}", module)
+            in_project = module in reach.project_modules
             for name in sorted(scan.string_refs):
+                if "." not in name and not in_project:
+                    # A bare word in library code ("py" as a Pygments language, "json" as a
+                    # format) is not evidence of a module reference. Project code keeps every
+                    # string: Django's INSTALLED_APPS lists one-word apps. A library that does
+                    # import such a word by name passes it to an import function, which is a
+                    # literal import or a computed one, recorded separately.
+                    continue
                 add(resolve(name), f"named in a string in {module}", module)
         paths = {m: s.path for m, s in reach.modules.items()}
         for rule in RULES:
@@ -185,18 +226,33 @@ def module_reachability(
 ) -> ModuleReach:
     reach = ModuleReach()
     scans, computed_in_project = _load(project_root, trees, reach)
-    _close(reach, scans)
-    uncovered = sorted(
-        f"{m}:{line}"
-        for m in reach.reached
-        if reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
+    # Reviewed distributions (Django, Pillow) and modules have their discovery covered by
+    # framework rules already: Django's apps, management commands and migrations rules.
+    discovering = {
+        reach.modules[m].owner
+        for m, s in scans.items()
+        if s.discovers
+        and reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
         and not covered_module(m)
-        for line in scans[m].dynamic_computed
+    }
+    _close(reach, scans)
+    _close(reach, scans, config_seeds(project_root))  # strict: configuration files only widen it
+    _discovered(reach, scans, discovering)
+
+    uncovered = sorted(
+        (
+            (m, c)
+            for m in reach.reached
+            if reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
+            and not covered_module(m)
+            for c in _computed(scans[m])
+        ),
+        key=lambda mc: (mc[0], mc[1].line),
     )
     if uncovered:
         reach.blockers.append(
             "reached code imports modules by computed name that no framework rule covers: "
-            + ", ".join(uncovered[:3])
+            + ", ".join(f"{m}:{c.line}" for m, c in uncovered[:3])
         )
     if computed_in_project:
         reach.blockers.append(
@@ -206,3 +262,63 @@ def module_reachability(
         names = ", ".join(sorted(p.name for p in failures)[:5])
         reach.blockers.append(f"could not read the source of {names}, so its imports are unknown")
     return reach
+
+
+def _discovered(
+    reach: ModuleReach, scans: Mapping[str, ModuleImports], discovering: set[str]
+) -> None:
+    """A reached library that finds modules by listing them can load any module of its own.
+
+    Faker lists the folders of `faker.providers` and imports each by name, so every module of a
+    discovering distribution joins the closure once any of its modules is reached, and growth
+    goes on from there (what Faker's providers import). This only widens the closure.
+    """
+    while True:
+        owners = {reach.modules[m].owner for m in reach.reached} & discovering
+        seeds = sorted(
+            m for m, src in reach.modules.items() if src.owner in owners and m not in reach.reached
+        )
+        if not seeds:
+            return
+        reasons = {
+            m: f"{reach.modules[m].owner} finds its own modules by listing them" for m in seeds
+        }
+        _close(reach, scans, [(m, reasons[m]) for m in seeds])
+
+
+def _computed(scan: ModuleImports) -> list[ComputedImport]:
+    """A module's computed imports; scans cached without kinds count every one as opaque."""
+    if scan.computed or not scan.dynamic_computed:
+        return scan.computed
+    return [ComputedImport(line, "opaque") for line in scan.dynamic_computed]
+
+
+_CONFIG_SUFFIXES = (".yaml", ".yml", ".toml", ".ini", ".cfg", ".json")
+_CONFIG_NAME = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
+
+
+def config_seeds(project_root: Path) -> list[Seed]:
+    """Dotted names in the repository's configuration files, which can name modules to load."""
+    seeds: list[Seed] = []
+    for rel in config_files(project_root):
+        path = project_root.joinpath(*rel.parts)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for name in sorted(set(_CONFIG_NAME.findall(text))):
+            seeds.append((name, f"named in {rel}"))
+    return seeds
+
+
+def config_files(root: Path) -> list[PurePosixPath]:
+    """Configuration files outside test and skipped folders (ADR 0022, section 3)."""
+    found: list[PurePosixPath] = []
+    for current, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith("."))
+        for name in sorted(files):
+            if not (name.endswith(_CONFIG_SUFFIXES) or name == ".env" or name.startswith(".env.")):
+                continue
+            rel = PurePosixPath(Path(current, name).relative_to(root).as_posix())
+            path = root.joinpath(*rel.parts)
+            if is_test_path(rel) or path.stat().st_size > MAX_FILE_BYTES:
+                continue
+            found.append(rel)
+    return found

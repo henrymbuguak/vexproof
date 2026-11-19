@@ -32,13 +32,13 @@ def _file(name: str, kind: str, size: int) -> dict[str, object]:
 
 def test_choose_prefers_pure_then_smallest_wheel_then_sdist() -> None:
     files = [
-        _file("x-1.0-cp312-manylinux.whl", "bdist_wheel", 5_000),
-        _file("x-1.0-cp312-win_amd64.whl", "bdist_wheel", 1_000),
+        _file("x-1.0-cp312-cp312-manylinux_2_17_x86_64.whl", "bdist_wheel", 5_000),
+        _file("x-1.0-cp312-cp312-win_amd64.whl", "bdist_wheel", 1_000),
         _file("x-1.0.tar.gz", "sdist", 10),
     ]
     assert choose_artifact(files) == Artifact(
-        "x-1.0-cp312-win_amd64.whl",
-        "https://files.test/x-1.0-cp312-win_amd64.whl",
+        "x-1.0-cp312-cp312-win_amd64.whl",
+        "https://files.test/x-1.0-cp312-cp312-win_amd64.whl",
         "ab" * 32,
         1_000,
         "wheel",
@@ -53,6 +53,29 @@ def test_choose_prefers_pure_then_smallest_wheel_then_sdist() -> None:
     assert sdist_only is not None
     assert sdist_only.kind == "sdist"
     assert choose_artifact([{"filename": "x.whl", "packagetype": "bdist_wheel"}]) is None
+
+
+def test_a_wheel_built_only_for_python_2_is_never_chosen() -> None:
+    # PyYAML 5.4.1: its smallest wheel is a cp27 one, holding the Python 2 copy of its code,
+    # whose implicit relative imports named no yaml.* module
+    pyyaml = [
+        _file("PyYAML-5.4.1-cp27-cp27m-win32.whl", "bdist_wheel", 100),
+        _file("PyYAML-5.4.1-py2-none-any.whl", "bdist_wheel", 50),
+        _file("PyYAML-5.4.1-cp38-cp38-win_amd64.whl", "bdist_wheel", 200),
+        _file("PyYAML-5.4.1.tar.gz", "sdist", 10),
+    ]
+    chosen = choose_artifact(pyyaml)
+    assert chosen is not None
+    assert chosen.filename == "PyYAML-5.4.1-cp38-cp38-win_amd64.whl"
+    only_python2 = choose_artifact(pyyaml[:2] + pyyaml[3:])
+    assert only_python2 is not None
+    assert only_python2.kind == "sdist"  # the sdist, never a Python 2 wheel
+    both = choose_artifact([_file("y-1.0-py2.py3-none-any.whl", "bdist_wheel", 9)])
+    assert both is not None  # a wheel for Python 2 and 3 is fine
+    stable_abi = choose_artifact(
+        [_file("z-1.0-cp37-abi3-manylinux_2_17_x86_64.whl", "bdist_wheel", 9)]
+    )
+    assert stable_abi is not None
 
 
 @pytest.mark.parametrize(

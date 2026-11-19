@@ -13,7 +13,7 @@ from vexproof.sources.archive import Extracted
 # v2: modules whose file name is not an identifier (Django's `0001_initial.py`) are included.
 # v3: sdists that keep code under `lib/` (SQLAlchemy, PyYAML) get the right module names.
 # A new name makes trees cached by older versions rebuild once.
-MANIFEST = "vexproof-tree-v3.json"
+MANIFEST = "vexproof-tree-v4.json"  # v4: never from a wheel built only for Python 2
 # Entry-point groups that only create executables; any other group can load code as a plugin.
 SCRIPT_GROUPS = frozenset({"console_scripts", "gui_scripts"})
 _SKIP_TOP = frozenset({"tests", "test", "testing", "docs", "doc", "examples", "benchmarks"})

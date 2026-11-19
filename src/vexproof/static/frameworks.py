@@ -166,8 +166,24 @@ def allauth_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
                 yield RuleHit(f"{name}.urls", "allauth mounts the URLs of every provider")
 
 
+# Python modules that psycopg2's compiled extension imports when it loads: read from the C
+# sources of psycopg2 2.8.6 (its PyImport_ImportModule calls), after an import sweep found
+# psycopg2.errors loaded but missing from the closure. psycopg2-binary installs the same modules.
+PSYCOPG2_NATIVE_IMPORTS = ("errors", "extensions", "extras", "sql", "tz")
+
+
+def psycopg2_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
+    """Compiled code imports Python modules that no source scan can see (ADR 0022, limits)."""
+    if "psycopg2" not in reached:
+        return
+    for name in PSYCOPG2_NATIVE_IMPORTS:
+        if f"psycopg2.{name}" in modules:
+            yield RuleHit(f"psycopg2.{name}", "psycopg2's compiled extension imports it on load")
+
+
 RULES: tuple[Callable[[Modules, Reached], Iterable[RuleHit]], ...] = (
     django_rules,
     pillow_rules,
     allauth_rules,
+    psycopg2_rules,
 )

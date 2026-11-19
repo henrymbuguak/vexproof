@@ -20,7 +20,26 @@ from vexproof.domain import Package
 from vexproof.errors import VexproofError
 from vexproof.intel.http import DAY, JsonHttp
 
-_PURE_TAGS = ("-py3-none-any.whl", "-py2.py3-none-any.whl", "-py3-none-any.", "-none-any.whl")
+
+def _wheel_tags(filename: str) -> tuple[str, str, str] | None:
+    """`pkg-1.0-py3-none-any.whl` -> ("py3", "none", "any"): the python, abi and platform tags."""
+    parts = filename.removesuffix(".whl").split("-")
+    min_parts = 5  # name, version, python, abi, platform (a build tag makes six)
+    return (parts[-3], parts[-2], parts[-1]) if len(parts) >= min_parts else None
+
+
+def _for_python3(filename: str) -> bool:
+    """Whether a wheel's code is for Python 3. PyYAML 5.4.1's cp27 wheels hold its Python 2
+    copy, whose implicit relative imports (`from error import *`) name no `yaml.*` module."""
+    tags = _wheel_tags(filename)
+    if tags is None:
+        return False
+    return any(t.startswith(("py3", "cp3", "pp3")) for t in tags[0].split("."))
+
+
+def _pure(filename: str) -> bool:
+    tags = _wheel_tags(filename)
+    return tags is not None and tags[1:] == ("none", "any")
 
 
 class SourceError(VexproofError):
@@ -37,14 +56,19 @@ class Artifact:
 
 
 def choose_artifact(files: Sequence[Mapping[str, Any]]) -> Artifact | None:
-    """Prefer a pure-Python wheel, then the smallest wheel, then an sdist.
+    """Prefer a pure-Python wheel, then the smallest wheel, then an sdist; wheels for Python 3 only.
 
-    Every wheel of one version ships the same Python source; the smallest one usually omits
-    bundled native libraries, so it downloads fastest without changing what is analysed.
+    The wheels of one version built for Python 3 ship the same Python source; the smallest one
+    usually omits bundled native libraries, so it downloads fastest without changing what is
+    analysed. A wheel built only for Python 2 can hold different source and is never chosen.
     """
     candidates = [f for f in files if f.get("digests", {}).get("sha256") and f.get("url")]
-    wheels = [f for f in candidates if f.get("packagetype") == "bdist_wheel"]
-    pure = [w for w in wheels if any(str(w["filename"]).endswith(t) for t in _PURE_TAGS)]
+    wheels = [
+        f
+        for f in candidates
+        if f.get("packagetype") == "bdist_wheel" and _for_python3(str(f["filename"]))
+    ]
+    pure = [w for w in wheels if _pure(str(w["filename"]))]
     sdists = [
         f
         for f in candidates
