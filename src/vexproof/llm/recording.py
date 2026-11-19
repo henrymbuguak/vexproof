@@ -14,9 +14,15 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from vexproof.llm.types import ModelReplayMissError, ModelRequest, ModelResponse, Transport
+from vexproof.llm.types import (
+    ModelReplayMissError,
+    ModelRequest,
+    ModelResponse,
+    ToolCall,
+    Transport,
+)
 
 Mode = Literal["cache", "replay", "live"]
 
@@ -56,7 +62,7 @@ class RecordingTransport:
             if path.is_file():
                 for line in path.read_text(encoding="utf-8").splitlines():
                     row = json.loads(line)
-                    found[row["key"]] = ModelResponse(**row["response"], replayed=True)
+                    found[row["key"]] = _from_row(row["response"])
             self._loaded[purpose] = found
         return self._loaded[purpose]
 
@@ -79,25 +85,39 @@ class RecordingTransport:
 
     def _store(self, request: ModelRequest, response: ModelResponse) -> None:
         key = request.key(self._model)
-        recorded = ModelResponse(
-            text=response.text,
-            model=self._model,
-            input_tokens=response.input_tokens,
-            output_tokens=response.output_tokens,
-            replayed=True,
-        )
-        row = {
-            "key": key,
-            "prompt_version": request.prompt_version,
-            "response": {
-                "text": recorded.text,
-                "model": recorded.model,
-                "input_tokens": recorded.input_tokens,
-                "output_tokens": recorded.output_tokens,
-            },
-        }
+        stored = _to_row(response, self._model)
+        row = {"key": key, "prompt_version": request.prompt_version, "response": stored}
         with self._lock:
             self._dir.mkdir(parents=True, exist_ok=True)
             with self._file(request.purpose).open("a", encoding="utf-8") as out:
                 out.write(json.dumps(row, sort_keys=True) + "\n")
-            self._recordings(request.purpose)[key] = recorded
+            self._recordings(request.purpose)[key] = _from_row(stored)
+
+
+# Fields a row has always held; the others are written only when set, so a recording of a plain
+# answer looks exactly as it did before ADR 0013 and old rows load unchanged.
+_EXTRAS = ("stop_reason", "cache_read_tokens", "cache_write_tokens")
+
+
+def _to_row(response: ModelResponse, model: str) -> dict[str, Any]:
+    """What a recording keeps of a response. Latency is a property of the live call, not kept."""
+    row: dict[str, Any] = {
+        "text": response.text,
+        "model": model,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+    }
+    for name in _EXTRAS:
+        if value := getattr(response, name):
+            row[name] = value
+    if response.tool_calls:
+        row["tool_calls"] = [
+            {"id": c.id, "name": c.name, "input": c.input} for c in response.tool_calls
+        ]
+    return row
+
+
+def _from_row(row: dict[str, Any]) -> ModelResponse:
+    fields = dict(row)
+    calls = tuple(ToolCall(**c) for c in fields.pop("tool_calls", ()))
+    return ModelResponse(**fields, tool_calls=calls, replayed=True)

@@ -64,7 +64,7 @@ class StructuredCaller:
         user: str,
         max_output_tokens: int = 2000,
     ) -> M:
-        request = ModelRequest(
+        request = ModelRequest.single(
             purpose=purpose,
             prompt_version=prompt_version,
             system=system,
@@ -77,7 +77,8 @@ class StructuredCaller:
         try:
             return _parse(reply.text, schema)
         except (ValueError, ValidationError) as first:
-            repair = ModelRequest(
+            # still one user message, so repairs recorded before ADR 0013 keep their keys
+            repair = ModelRequest.single(
                 purpose=purpose,
                 prompt_version=prompt_version,
                 system=system,
