@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -16,10 +17,14 @@ from vexproof.llm.recording import RecordingTransport
 from vexproof.llm.structured import StructuredCaller, strict_schema
 from vexproof.llm.types import (
     BudgetExceededError,
+    Message,
     ModelError,
     ModelOutputInvalidError,
     ModelReplayMissError,
     ModelRequest,
+    ModelResponse,
+    ToolCall,
+    ToolSpec,
     is_local_endpoint,
 )
 
@@ -35,7 +40,7 @@ class Answer(BaseModel):
 
 
 def _request(user: str = "hello", purpose: str = "test") -> ModelRequest:
-    return ModelRequest(
+    return ModelRequest.single(
         purpose=purpose,
         prompt_version="test.v1",
         system="system",
@@ -54,6 +59,54 @@ def test_request_key_changes_with_every_input() -> None:
     assert base.key("m") == _request().key("m")
     assert base.key("m") != base.key("other-model")
     assert base.key("m") != _request(user="changed").key("m")
+
+
+def test_single_message_key_is_unchanged_since_v0_1_0() -> None:
+    # Computed with the v0.1.0 code, when a request was one system and one user string. Every
+    # recording made then is stored under such a key; if this changes, none of them replays.
+    legacy = ModelRequest.single(
+        purpose="symbol_pick",
+        prompt_version="symbol_pick.v1",
+        system="You are a vulnerability analyst.",
+        user='<advisory id="GHSA-x">Ünïcode “quotes”</advisory>',
+        schema_name="SymbolPick",
+        schema={
+            "type": "object",
+            "properties": {"selected": {"type": "array"}},
+            "required": ["selected"],
+        },
+    )
+    expected = "13ecfbcde5d4636f2c670549163a3a2d5312d933a0a7ae28db4461899bc6366b"
+    assert legacy.key("muse-spark-open:cloud") == expected
+    # size and cache hints are not part of a request's identity
+    hinted = dataclasses.replace(legacy, max_output_tokens=16_000, cache_points=(0,))
+    assert hinted.key("muse-spark-open:cloud") == expected
+
+
+def test_conversations_and_tools_have_keys_of_their_own() -> None:
+    single = _request()
+    turns = (Message("user", "hello"), Message("assistant", "hi"), Message("user", "more"))
+    conversation = dataclasses.replace(single, messages=turns)
+    assert conversation.key("m") != single.key("m")
+    assert conversation.user == "more"
+    assert dataclasses.replace(conversation, messages=turns[:1]).key("m") == single.key("m")
+    tool = ToolSpec("search", "find a path", {"type": "object"})
+    with_tool = dataclasses.replace(single, tools=(tool,))
+    assert with_tool.key("m") != single.key("m")  # a tool makes it a new request
+    renamed = dataclasses.replace(single, tools=(dataclasses.replace(tool, name="other"),))
+    assert renamed.key("m") != with_tool.key("m")
+    assert not with_tool.is_single
+
+
+@pytest.mark.parametrize(
+    ("messages", "cache_points"),
+    [((), ()), ((Message("assistant", "hi"),), ()), ((Message("user", "hi"),), (1,))],
+)
+def test_malformed_requests_are_refused(
+    messages: tuple[Message, ...], cache_points: tuple[int, ...]
+) -> None:
+    with pytest.raises(ValueError, match="message"):
+        dataclasses.replace(_request(), messages=messages, cache_points=cache_points)
 
 
 def test_strict_schema_requires_everything_and_forbids_extras() -> None:
@@ -107,6 +160,62 @@ def test_recording_transport_validates_arguments(tmp_path: Path) -> None:
         RecordingTransport(None, tmp_path, "cache")
     with pytest.raises(ValueError, match="model name"):
         RecordingTransport(None, tmp_path, "replay")
+
+
+class _FixedTransport:
+    model = "fake-model"
+
+    def __init__(self, response: ModelResponse) -> None:
+        self.response = response
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        return self.response
+
+
+def test_recordings_keep_stop_reasons_cache_tokens_and_tool_calls(tmp_path: Path) -> None:
+    rich = ModelResponse(
+        text="",
+        model="fake-model",
+        input_tokens=40,
+        output_tokens=12,
+        tool_calls=(ToolCall("t1", "search", {"avoid": ["a.b"], "through": []}),),
+        stop_reason="tool_use",
+        cache_read_tokens=900,
+        cache_write_tokens=60,
+        latency_ms=1234,
+    )
+    RecordingTransport(_FixedTransport(rich), tmp_path, "cache").complete(_request())
+    replay = RecordingTransport(None, tmp_path, "replay", model="fake-model")
+    back = replay.complete(_request())
+    assert back == dataclasses.replace(rich, replayed=True, latency_ms=0)  # latency is not kept
+
+
+def test_a_plain_answer_is_recorded_exactly_as_before(tmp_path: Path) -> None:
+    plain = ModelResponse(text='{"name": "x"}', model="fake-model", input_tokens=5, output_tokens=2)
+    RecordingTransport(_FixedTransport(plain), tmp_path, "cache").complete(_request())
+    (row,) = [json.loads(line) for line in (tmp_path / "test.jsonl").read_text().splitlines()]
+    assert set(row["response"]) == {"text", "model", "input_tokens", "output_tokens"}
+
+
+def test_recordings_from_v0_1_0_still_load(tmp_path: Path) -> None:
+    old_row = {
+        "key": _request().key("fake-model"),
+        "prompt_version": "test.v1",
+        "response": {
+            "text": '{"name": "old"}',
+            "model": "fake-model",
+            "input_tokens": 7,
+            "output_tokens": 3,
+        },
+    }
+    (tmp_path / "test.jsonl").write_text(json.dumps(old_row) + "\n")
+    back = RecordingTransport(None, tmp_path, "replay", model="fake-model").complete(_request())
+    assert (back.text, back.stop_reason, back.tool_calls, back.replayed) == (
+        '{"name": "old"}',
+        "",
+        (),
+        True,
+    )
 
 
 # -- budget ------------------------------------------------------------------------------------
@@ -329,6 +438,57 @@ def test_meta_chat_api() -> None:
     sent = json.loads(seen[0].content)
     assert sent["response_format"]["type"] == "json_schema"
     assert sent["messages"][0] == {"role": "system", "content": "system"}
+
+
+def test_meta_sends_one_message_exactly_as_before_and_reports_why_it_stopped() -> None:
+    meta, seen = _meta(httpx2.Response(200, json=RESPONSES_BODY))
+    response = meta.complete(_request())
+    assert json.loads(seen[0].content)["input"] == "hello"  # a plain string, as in v0.1.0
+    assert response.stop_reason == "end_turn"
+    assert response.latency_ms >= 0
+    chat, _ = _meta(httpx2.Response(200, json=CHAT_BODY), api="chat")
+    assert chat.complete(_request()).stop_reason == "end_turn"
+
+
+def test_meta_sends_a_whole_conversation() -> None:
+    turns = (Message("user", "hello"), Message("assistant", "hi"), Message("user", "more"))
+    conversation = dataclasses.replace(_request(), messages=turns)
+    meta, seen = _meta(httpx2.Response(200, json=RESPONSES_BODY))
+    meta.complete(conversation)
+    assert json.loads(seen[0].content)["input"] == [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+        {"role": "user", "content": "more"},
+    ]
+    chat, sent = _meta(httpx2.Response(200, json=CHAT_BODY), api="chat")
+    chat.complete(conversation)
+    assert [m["role"] for m in json.loads(sent[0].content)["messages"]] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+
+
+def test_meta_reports_truncation_as_max_tokens() -> None:
+    cut = {**RESPONSES_BODY, "status": "incomplete"}
+    cut["incomplete_details"] = {"reason": "max_output_tokens"}
+    meta, _ = _meta(httpx2.Response(200, json=cut))
+    assert meta.complete(_request()).stop_reason == "max_tokens"
+    long_chat = json.loads(json.dumps(CHAT_BODY))  # a deep copy, so the shared fixture is untouched
+    long_chat["choices"][0]["finish_reason"] = "length"
+    chat, _ = _meta(httpx2.Response(200, json=long_chat), api="chat")
+    assert chat.complete(_request()).stop_reason == "max_tokens"
+
+
+def test_meta_refuses_tools_and_schemaless_requests_without_calling() -> None:
+    meta, seen = _meta()
+    tool = ToolSpec("search", "find a path", {"type": "object"})
+    with pytest.raises(ModelError, match="does not support tool calls"):
+        meta.complete(dataclasses.replace(_request(), tools=(tool,)))
+    with pytest.raises(ModelError, match="needs a response schema"):
+        meta.complete(dataclasses.replace(_request(), schema={}))
+    assert seen == []
 
 
 def test_meta_retries_transient_errors() -> None:
