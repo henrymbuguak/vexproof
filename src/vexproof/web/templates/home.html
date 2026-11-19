@@ -6,7 +6,7 @@
   <div class="wrap hero-grid">
     <div class="hero-text">
       <h1>Which of your dependency alerts can actually reach your code?</h1>
-      <p class="lead">Scanners list every advisory for every package you install. vexproof reads your code and each advisory's fix, then settles each alert with evidence: a verified call path from your code to the vulnerable function, or proof that its module never loads.</p>
+      <p class="lead">Scanners list every advisory for every package you install. vexproof reads your code and each advisory's fix, then settles each alert with evidence: a verified call path from your code to the vulnerable function, or proof that no module its fix changed ever loads.</p>
       <p>Muse Spark proposes which function an advisory is about and judges uncertain steps. A verifier checks every step before anything is reported.</p>
     </div>
     {% set example = demo.headline_path if demo else None %}

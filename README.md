@@ -126,11 +126,12 @@ flowchart TB
    to justify the pick. The verifier rejects any name that is not a real candidate and any quote
    that is not in the advisory.
 4. **Prove or clear.**
-   - **Cleared** when your code never loads the module (the Python file) that holds the
-     vulnerable function. vexproof works this out from your imports, from module names written
-     as text in settings (such as Django's `INSTALLED_APPS`), and from hand-written rules for how
-     frameworks load code. If anything loads code by a name vexproof cannot see, it refuses to
-     clear.
+   - **Cleared** when your code never loads any module (Python file) that the fix changed,
+     whichever function the model picked: the model's answer can stop a clear but never make one
+     ([ADR 0020](docs/adr/0020-model-may-block-never-enable-clear.md)). vexproof works this out
+     from your imports, from module names written as text in settings (such as Django's
+     `INSTALLED_APPS`), and from hand-written rules for how frameworks load code. If anything
+     loads code by a name vexproof cannot see, it refuses to clear.
    - **Reachable** when it finds a call path from your code to the vulnerable function. Most
      steps are **certain**: the code shows exactly which function gets called. Some are
      **uncertain**: a method is called on an object whose type Python only knows at run time.

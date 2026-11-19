@@ -1,6 +1,6 @@
 # ADR 0020: A model may block a clear, never enable or narrow one
 
-**Status:** proposed · **Date:** 2026-11-18 · Amends ADR 0008 · See `docs/design.md`, "Where the
+**Status:** accepted · **Date:** 2026-11-18, implemented 2026-11-19 · Amends ADR 0008 · See `docs/design.md`, "Where the
 model stays out"
 
 ## Context

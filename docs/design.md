@@ -559,7 +559,7 @@ The benchmark dataset lives in its own repository so others can cite and extend 
 
 ### Phase 0: Claude port (now to 26 Nov, alongside exam prep)
 
-- [ ] Make clears independent of the pick (ADR 0020); a recount shows all 30 existing clears survive the stricter rule, so this changes no published result
+- [x] Make clears independent of the pick (ADR 0020); a recount shows all 30 existing clears survive the stricter rule, so this changes no published result
 - [ ] Extend `ModelRequest` and `ModelResponse`, adapt `MetaTransport`, and prove with a test that a one-message, no-tool request hashes exactly as `key()` does today, so every existing recording replays
 - [ ] Add `AnthropicTransport` for `symbol_pick` using structured outputs, explicit effort, typed errors, retry, and handlers for `refusal` and `max_tokens`
 - [ ] Run one shop scan on Claude and record cost, refusals and agreement with existing picks

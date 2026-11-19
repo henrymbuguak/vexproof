@@ -260,7 +260,7 @@ def _footer(context: ReportContext) -> str:
     lines: Iterable[str] = (
         "How to read this: “reachable” means vexproof verified every step of a call path from "
         "your code to the function the fix changed; uncertain steps were judged by the model and "
-        "are marked. “Not affected” means the module holding that function is never loaded. "
+        "are marked. “Not affected” means no module the fix changed is ever loaded. "
         "Neither is a guess: the model proposes, the verifier proves.",
         "Paths ignore runtime conditions (configuration, input values), so a reachable alert is "
         "a strong lead for a fix, not proof of an exploit.",
