@@ -562,11 +562,11 @@ The benchmark dataset lives in its own repository so others can cite and extend 
 - [x] Make clears independent of the pick (ADR 0020); a recount shows all 30 existing clears survive the stricter rule, so this changes no published result
 - [x] Extend `ModelRequest` and `ModelResponse`, adapt `MetaTransport`, and prove with a test that a one-message, no-tool request hashes exactly as `key()` does today, so every existing recording replays
 - [x] Add `AnthropicTransport` for `symbol_pick` using structured outputs, explicit effort, typed errors, retry, and handlers for `refusal` and `max_tokens` (as `ClaudeTransport` in `llm/claude.py`)
-- [ ] Run one shop scan on Claude and record cost, refusals and agreement with existing picks
+- [x] Run one shop scan on Claude and record cost, refusals and agreement with existing picks (Haiku 5.5 and Opus 5.5: `eval/results/claude-tiers-shop-1aa90f6.md`)
 - [ ] Change `RecordingTransport` to store every content block (text, thinking with its signature, tool-use blocks with their IDs) and replay them unchanged; add effort and thinking settings to the key only when set
 - [x] Raise output limits for thinking models (pick, trace loop, `check-model` ping)
 - [ ] Make `BudgetTransport` count cache reads and writes; add `pricing.py` with a per-model price table
-- [ ] Run `vexproof check-model` and both Django scans on each Claude tier
+- [ ] Run `vexproof check-model` and both Django scans on each Claude tier (done: `check-model` on all three tiers, the shop scan on Haiku 5.5 and Opus 5.5; left: Sonnet 5.5 on the shop, and justdjango)
 
 Phase 0 has about eight days alongside exam preparation. The first four tasks are the minimum; if time runs short, the rest move to the start of Phase 1.
 
