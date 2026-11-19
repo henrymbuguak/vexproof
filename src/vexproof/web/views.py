@@ -57,6 +57,7 @@ class Outcomes:
     reachable: int
     certain: int
     open: int
+    assumed: int = 0  # ADR 0022: open, never loaded under the configuration assumption
 
     def share(self, part: int) -> float:
         return 100 * part / self.total if self.total else 0.0
@@ -130,6 +131,7 @@ def result_view(
         reachable=counts[Outcome.PATH_CERTAIN] + counts[Outcome.PATH_REVIEWED],
         certain=counts[Outcome.PATH_CERTAIN],
         open=counts[Outcome.OPEN],
+        assumed=counts[Outcome.CLEARED_ASSUMED],
     )
     evaluation = (
         evaluate(record, load_observation(observation), gold) if observation is not None else None

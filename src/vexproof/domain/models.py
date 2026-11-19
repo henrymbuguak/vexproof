@@ -139,6 +139,11 @@ class Evidence(Frozen):
     chain_model: str | None = Field(default=None, description="model and prompt that found it")
     checks_passed: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
+    assumed_on: tuple[str, ...] = Field(
+        default=(),
+        description="ADR 0022: the library computed imports ('module:line') an assumed clear "
+        "rests on; empty for every other alert",
+    )
 
 
 class Finding(Frozen):
@@ -153,6 +158,20 @@ class Finding(Frozen):
         default=None, description="OpenVEX justification when verdict is not_affected"
     )
     evidence: Evidence | None = None
+
+    @property
+    def assumed_clear(self) -> bool:
+        """Cleared only under ADR 0022's assumption: still open, pending a person's approval."""
+        return (
+            self.verdict is None
+            and self.evidence is not None
+            and ASSUMED_CLEAR_CHECK in self.evidence.checks_passed
+        )
+
+
+# The check an assumed clear carries (ADR 0022). It lives with the model so every stage can tell
+# an assumed clear from a strict one without depending on the stage that makes it.
+ASSUMED_CLEAR_CHECK = "module_not_loaded_assuming_configuration"
 
 
 class ServiceProfile(Frozen):

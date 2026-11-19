@@ -87,6 +87,7 @@ def test_prove_clears_traces_and_leaves_open(tmp_path: Path) -> None:
         "cleared_module": 1,
         "path_certain": 1,
         "path_reviewed": 0,
+        "cleared_assumed": 0,
         "open": 2,
     }
 

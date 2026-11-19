@@ -189,6 +189,9 @@ def payload(result: ScanResult, usage: dict[str, object] | None = None) -> dict[
             "reached": list(closure.reached),
             "unreached": list(closure.unreached),
             "blockers": list(closure.blockers),
+            "assumed_reached": list(closure.assumed_reached),
+            "assumed_on": list(closure.assumed_on),
+            "assumed_blockers": list(closure.assumed_blockers),
         },
         "summary": {
             "alerts": len(result.findings),

@@ -16,6 +16,12 @@
       <dt>Reachable</dt>
       <dd><strong>{{ o.reachable }}</strong> with a verified call path from your code{% if o.certain %}, {{ o.certain }} certain at every step{% endif %}</dd>
     </div>
+    {% if o.assumed %}
+    <div class="legend-item legend-open">
+      <dt>To approve</dt>
+      <dd><strong>{{ o.assumed }}</strong> never loaded, assuming your configuration names no other module; not cleared until a person approves them</dd>
+    </div>
+    {% endif %}
     <div class="legend-item legend-open">
       <dt>Open</dt>
       <dd><strong>{{ o.open }}</strong> without verified evidence either way, listed for review</dd>
