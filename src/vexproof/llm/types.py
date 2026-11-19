@@ -50,8 +50,18 @@ StopReason = Literal["", "end_turn", "max_tokens", "tool_use", "refusal"]
 
 @dataclass(frozen=True)
 class Message:
+    """One turn. `content` is its text. `blocks`, when set, are the exact content blocks to send
+    instead: a Claude reply's thinking (with its signature), text, tool calls and any fallback
+    markers, which must go back to the API unchanged; or a user turn's tool results."""
+
     role: Role
     content: str
+    blocks: tuple[dict[str, Any], ...] = field(default=(), hash=False)
+
+    @classmethod
+    def reply(cls, response: ModelResponse) -> Message:
+        """The model's reply as the next assistant turn, every block kept as it came back."""
+        return cls("assistant", response.text, response.blocks)
 
 
 @dataclass(frozen=True)
@@ -150,7 +160,11 @@ class ModelRequest:
                 "model": model,
                 "prompt_version": self.prompt_version,
                 "system": self.system,
-                "messages": [[m.role, m.content] for m in self.messages],
+                # blocks join only when present, so keys of requests without them stay as they were
+                "messages": [
+                    [m.role, m.content, list(m.blocks)] if m.blocks else [m.role, m.content]
+                    for m in self.messages
+                ],
                 "schema_name": self.schema_name,
                 "schema": self.schema,
             }
@@ -177,6 +191,8 @@ class ModelResponse:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     latency_ms: int = 0  # time the live call took; 0 for a replayed answer
+    # every content block as the API returned it (Claude), to send back unchanged next turn
+    blocks: tuple[dict[str, Any], ...] = field(default=(), hash=False)
 
 
 class Transport(Protocol):

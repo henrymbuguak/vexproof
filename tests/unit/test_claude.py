@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -179,12 +180,77 @@ def test_tools_are_strict_with_automatic_choice_and_calls_come_back() -> None:
     ]
 
 
-def test_conversations_with_assistant_turns_are_refused_until_thinking_is_kept() -> None:
+THINKING = {"type": "thinking", "thinking": "", "signature": "EqQBCkYIBxgCKkD0c2lnbmF0dXJl"}
+TOOL_USE = {"type": "tool_use", "id": "toolu_1", "name": "search", "input": {"avoid": ["a.b"]}}
+
+
+def test_a_rebuilt_assistant_turn_is_refused() -> None:
     claude, seen = _claude()
     turns = (Message("user", "q"), Message("assistant", "a"), Message("user", "q2"))
-    with pytest.raises(ModelError, match="earlier assistant turns"):
+    with pytest.raises(ModelError, match=r"Message\.reply"):
         claude.complete(_request(messages=turns))
     assert seen == []
+
+
+def test_every_block_of_a_reply_is_kept_and_goes_back_unchanged() -> None:
+    first = _message(stop="tool_use", content=[THINKING, {"type": "text", "text": "Hm."}, TOOL_USE])
+    claude, seen = _claude(httpx2.Response(200, json=first), httpx2.Response(200, json=_message()))
+    reply = claude.complete(_request())
+    assert reply.blocks == (THINKING, {"type": "text", "text": "Hm."}, TOOL_USE)
+    result = Message(
+        "user",
+        "",
+        ({"type": "tool_result", "tool_use_id": "toolu_1", "content": "no path"},),
+    )
+    turns = (Message("user", "<target>"), Message.reply(reply), result)
+    claude.complete(_request(messages=turns, cache_points=(1,)))
+    sent = _body(seen[1])["messages"]
+    assert sent[1]["role"] == "assistant"
+    thinking, text, tool_use = sent[1]["content"]
+    assert thinking == THINKING  # signature and all, byte for byte
+    assert text == {"type": "text", "text": "Hm."}
+    assert tool_use == {**TOOL_USE, "cache_control": {"type": "ephemeral"}}  # last non-thinking
+    assert sent[2]["content"] == [
+        {"type": "tool_result", "tool_use_id": "toolu_1", "content": "no path"}
+    ]
+    assert reply.blocks[2] == TOOL_USE  # the cache point did not alter the kept reply
+
+
+def test_a_cache_point_never_lands_on_a_thinking_block() -> None:
+    only_thinking = Message("assistant", "", (THINKING,))
+    claude, seen = _claude(httpx2.Response(200, json=_message()))
+    turns = (Message("user", "q"), only_thinking, Message("user", "q2"))
+    claude.complete(_request(messages=turns, cache_points=(1,)))
+    assert _body(seen[0])["messages"][1]["content"] == [THINKING]
+
+
+def test_recordings_keep_the_blocks_and_their_keys_follow_them(tmp_path: Path) -> None:
+    claude, _ = _claude(
+        httpx2.Response(200, json=_message(content=[THINKING, {"type": "text", "text": "ok"}]))
+    )
+    RecordingTransport(claude, tmp_path, "cache").complete(_request())
+    replay = RecordingTransport(None, tmp_path, "replay", model="claude-opus-5-5")
+    back = replay.complete(_request())
+    assert back.blocks == (THINKING, {"type": "text", "text": "ok"})
+    # the next turn's key covers the blocks: a different signature is a different conversation
+    turns = (Message("user", "q"), Message.reply(back), Message("user", "q2"))
+    edited = Message("assistant", "ok", ({**THINKING, "signature": "other"},))
+    assert _request(messages=turns).key("m") != _request(messages=(turns[0], edited, turns[2])).key(
+        "m"
+    )
+    # and a conversation without blocks keeps the key it had before blocks existed
+    plain = (Message("user", "q"), Message("assistant", "a"), Message("user", "q2"))
+    material = {
+        "key_version": 2,
+        "model": "m",
+        "prompt_version": "symbol_pick.v1",
+        "system": "You are a vulnerability analyst.",
+        "messages": [["user", "q"], ["assistant", "a"], ["user", "q2"]],
+        "schema_name": "Answer",
+        "schema": strict_schema(Answer),
+    }
+    expected = hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
+    assert _request(messages=plain).key("m") == expected
 
 
 # -- stop reasons are typed failures, never answers --------------------------------------------

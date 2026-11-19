@@ -116,12 +116,15 @@ def _to_row(response: ModelResponse, model: str) -> dict[str, Any]:
         row["tool_calls"] = [
             {"id": c.id, "name": c.name, "input": c.input} for c in response.tool_calls
         ]
+    if response.blocks:  # thinking blocks and their signatures, kept byte for byte
+        row["blocks"] = list(response.blocks)
     return row
 
 
 def _from_row(row: dict[str, Any]) -> ModelResponse:
     fields = dict(row)
     calls = tuple(ToolCall(**c) for c in fields.pop("tool_calls", ()))
+    blocks = tuple(fields.pop("blocks", ()))
     if served_by := fields.pop("served_by", None):
         fields["model"] = served_by
-    return ModelResponse(**fields, tool_calls=calls, replayed=True)
+    return ModelResponse(**fields, tool_calls=calls, blocks=blocks, replayed=True)
