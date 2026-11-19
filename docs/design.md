@@ -579,11 +579,17 @@ applications today's rules give 2 module-level clears, because every project has
 88 alerts are held back by one. The benchmark's false-clear bound is meaningless until that
 changes, and choosing other projects does not change it.
 
-- [ ] Scope blockers to what a computed import could load (ADR 0022): a literal prefix confines it
-  to one package; an unbounded name still blocks everything
-- [ ] Find why pytest and IPython are reached from production code
+- [x] ~~Scope blockers to what a computed import could load~~: most blockers pass a variable, so a
+  prefix rule recovers almost nothing. Assumed clears were tried instead, measured against import
+  sweeps, and rejected (ADR 0022): unsound on Faker, and once made sound they cleared nothing
+- [x] Find why pytest and IPython are reached from production code: a one-word string rule in
+  library code (pytest); IPython is real (dispatch's CLI imports it)
 - [ ] Read nested requirements files (`-r` includes, `requirements/` folders)
-- [ ] Prove the closure sound on run-time observations of several projects (the import sweep)
+- [x] Prove the closure sound on run-time observations of several projects (the import sweep):
+  shop, justdjango, babybuddy and healthchecks, after fixing what the babybuddy sweep found
+- [ ] Reviewed rules for the libraries that block the projects closest to clearing:
+  django-compressor (healthchecks), plotly and Faker (babybuddy), django-extensions (djangogirls),
+  gunicorn (netbox); each checked by an import sweep
 - [ ] Repeat the feasibility pass and set the false-clear target from the groups available
 
 Acceptance: every module loaded at run time on the observed projects is in the closure; no clear
