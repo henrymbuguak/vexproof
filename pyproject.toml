@@ -1,6 +1,6 @@
 [project]
 name = "vexproof"
-version = "0.1.0"
+version = "0.2.0"
 description = "Evidence-backed vulnerability triage: which dependency CVEs actually reach your code. The AI proposes. The verifier proves."
 readme = "README.md"
 authors = [{ name = "Henry Mbugua" }]
