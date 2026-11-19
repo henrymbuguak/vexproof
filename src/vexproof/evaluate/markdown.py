@@ -30,14 +30,6 @@ def summary_rows(ev: Evaluation) -> list[tuple[str, str]]:
             f"{len(ev.falsified)} of {len(checkable)}{note}",
         )
     )
-    if ev.assumed_clears:  # ADR 0022: reported apart, never counted as clears
-        wrong = sum(1 for c in ev.assumed_clears if c.status == "falsified")
-        rows.append(
-            (
-                "Assumed clears contradicted by the run (ADR 0022)",
-                f"{wrong} of {len(ev.assumed_clears)}",
-            )
-        )
     if ev.closure is not None:
         native = len(ev.closure.not_in_source)
         rows.append(

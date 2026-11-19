@@ -100,7 +100,6 @@ def test_cli_scan_writes_json(
             "cleared_module": 0,
             "path_certain": 0,
             "path_reviewed": 0,
-            "cleared_assumed": 0,
             "open": 3,
         },
     }

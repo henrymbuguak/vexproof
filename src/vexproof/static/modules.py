@@ -11,18 +11,14 @@ Over-approximation, on purpose. A module is reached when:
 - a framework rule says the framework loads it by a computed name (`frameworks.py`);
 - it is the parent package of a reached module.
 
-A strict clear is refused when something could load modules the closure cannot see: a computed
-import that no framework rule covers, a package whose source could not be read, or project code
-that imports by computed name. Dotted names in the repository's configuration files join the
-closure too.
+A clear is refused when something could load modules the closure cannot see: a computed import
+that no framework rule covers, a package whose source could not be read, or project code that
+imports by computed name. Dotted names in the repository's configuration files join the closure
+too, and so does every module of a library that finds modules by listing them (ADR 0022).
 
-ADR 0022 adds a second, wider closure for *assumed* clears. It assumes configuration names no
-module beyond the code and repository files, and that every installed package is scanned. Under
-that assumption a library's computed import that passes a name in (`import_module(mod_name)`)
-loads something the closure already holds, and one built around literal text
-(`"%s.base" % engine`) loads an installed module matching that pattern, so every match joins the
-wider closure. Those imports block only strict clears; an opaque built name, project code that
-imports by computed name and unreadable sources block both.
+Each computed import is recorded with what its name is made of (plain, pattern or opaque) and
+whether its module lists packages or directories: facts a reviewer reads before writing a
+framework rule that covers it (ADR 0008).
 """
 
 from __future__ import annotations
@@ -31,7 +27,7 @@ import json
 import os
 import re
 from collections import deque
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -66,18 +62,9 @@ class ModuleReach:
     via: dict[str, str] = field(default_factory=dict)  # module -> the module that reached it
     project_modules: set[str] = field(default_factory=set)
     blockers: list[str] = field(default_factory=list)  # reasons no module may be cleared
-    # ADR 0022: modules only the wider, assumed closure reaches, the library computed imports an
-    # assumed clear rests on ("module:line"), and reasons no assumed clear is possible either
-    assumed_reached: dict[str, str] = field(default_factory=dict)
-    assumed_on: list[str] = field(default_factory=list)
-    assumed_blockers: list[str] = field(default_factory=list)
 
     def is_reached(self, module: str) -> bool:
         return module in self.reached
-
-    def is_reached_assuming(self, module: str) -> bool:
-        """Reached in the wider closure of ADR 0022."""
-        return module in self.reached or module in self.assumed_reached
 
     def why(self, module: str, limit: int = 6) -> str:
         """How `module` is reached, newest step first, e.g. `a (imported by b) <- b (...)`."""
@@ -252,34 +239,28 @@ def module_reachability(
     _close(reach, scans, config_seeds(project_root))  # strict: configuration files only widen it
     _discovered(reach, scans, discovering)
 
-    def uncovered(reached: Iterable[str]) -> list[tuple[str, ComputedImport]]:
-        return sorted(
-            (
-                (m, c)
-                for m in reached
-                if reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
-                and not covered_module(m)
-                for c in _computed(scans[m])
-            ),
-            key=lambda mc: (mc[0], mc[1].line),
-        )
-
-    strict = uncovered(reach.reached)
-    if strict:
+    uncovered = sorted(
+        (
+            (m, c)
+            for m in reach.reached
+            if reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
+            and not covered_module(m)
+            for c in _computed(scans[m])
+        ),
+        key=lambda mc: (mc[0], mc[1].line),
+    )
+    if uncovered:
         reach.blockers.append(
             "reached code imports modules by computed name that no framework rule covers: "
-            + ", ".join(f"{m}:{c.line}" for m, c in strict[:3])
+            + ", ".join(f"{m}:{c.line}" for m, c in uncovered[:3])
         )
-    shared: list[str] = []  # blockers of assumed clears too
     if computed_in_project:
-        shared.append(
+        reach.blockers.append(
             "project code imports modules by computed name: " + ", ".join(computed_in_project[:3])
         )
     if failures:
         names = ", ".join(sorted(p.name for p in failures)[:5])
-        shared.append(f"could not read the source of {names}, so its imports are unknown")
-    reach.blockers += shared
-    _assume(reach, scans, uncovered, shared, discovering)
+        reach.blockers.append(f"could not read the source of {names}, so its imports are unknown")
     return reach
 
 
@@ -310,62 +291,6 @@ def _computed(scan: ModuleImports) -> list[ComputedImport]:
     if scan.computed or not scan.dynamic_computed:
         return scan.computed
     return [ComputedImport(line, "opaque") for line in scan.dynamic_computed]
-
-
-def _assume(
-    reach: ModuleReach,
-    scans: Mapping[str, ModuleImports],
-    uncovered: Callable[[Iterable[str]], list[tuple[str, ComputedImport]]],
-    shared: list[str],
-    discovering: set[str],
-) -> None:
-    """Grow the wider closure of ADR 0022 and record what an assumed clear rests on.
-
-    A distribution that finds modules by listing packages, directories or entry points can import
-    names no code spells out, so none of its computed imports is assumable: they block assumed
-    clears too.
-    """
-
-    def assumable(m: str, c: ComputedImport) -> bool:
-        return c.kind != "opaque" and reach.modules[m].owner not in discovering
-
-    wide = ModuleReach(
-        modules=reach.modules,
-        reached=dict(reach.reached),
-        via=dict(reach.via),
-        project_modules=reach.project_modules,
-    )
-    while True:
-        patterns = [
-            c for m, c in uncovered(wide.reached) if c.kind == "pattern" and assumable(m, c)
-        ]
-        matches = sorted(
-            m for m in wide.modules if m not in wide.reached and any(p.matches(m) for p in patterns)
-        )
-        if not matches:
-            break
-        _close(wide, scans, [(m, "matches a computed import's name pattern") for m in matches])
-    reach.assumed_reached = {m: r for m, r in wide.reached.items() if m not in reach.reached}
-    for m in reach.assumed_reached:
-        if m in wide.via:
-            reach.via.setdefault(m, wide.via[m])  # so why() explains assumed modules too
-    relied = uncovered(wide.reached)
-    reach.assumed_on = [f"{m}:{c.line}" for m, c in relied if assumable(m, c)]
-    opaque = [f"{m}:{c.line}" for m, c in relied if c.kind == "opaque"]
-    found = [f"{m}:{c.line}" for m, c in relied if c.kind != "opaque" and not assumable(m, c)]
-    reach.assumed_blockers = list(shared)
-    if found:
-        reach.assumed_blockers.insert(
-            0,
-            "reached code imports modules it finds by listing packages, directories or entry "
-            "points: " + ", ".join(found[:3]),
-        )
-    if opaque:
-        reach.assumed_blockers.insert(
-            0,
-            "reached code builds a module name with nothing literal to match: "
-            + ", ".join(opaque[:3]),
-        )
 
 
 _CONFIG_SUFFIXES = (".yaml", ".yml", ".toml", ".ini", ".cfg", ".json")

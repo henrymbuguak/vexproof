@@ -320,14 +320,7 @@ def test_local_server_works_without_a_key(
         "cache_write_tokens": 0,
         "fresh_cost_usd": None,
     }
-    assert payload["closure"] == {
-        "reached": [],
-        "unreached": [],
-        "blockers": [],
-        "assumed_reached": [],
-        "assumed_on": [],
-        "assumed_blockers": [],
-    }
+    assert payload["closure"] == {"reached": [], "unreached": [], "blockers": []}
     assert set(payload["timings_s"]) >= {"ingest", "intel", "select", "prove"}
 
 

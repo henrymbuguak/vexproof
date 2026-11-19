@@ -154,14 +154,6 @@ def _tiles(findings: Sequence[Finding]) -> str:
         (str(counts[Outcome.OPEN]), "open: needs review"),
         (share, "alert noise removed"),
     ]
-    if counts[Outcome.CLEARED_ASSUMED]:  # ADR 0022: shown apart, never as cleared
-        tiles.insert(
-            4,
-            (
-                str(counts[Outcome.CLEARED_ASSUMED]),
-                "never loaded, assuming configuration names no other module: approve to clear",
-            ),
-        )
     body = "".join(f'<div class="tile"><b>{v}</b><span>{escape(t)}</span></div>' for v, t in tiles)
     return f'<section class="tiles">{body}</section>'
 

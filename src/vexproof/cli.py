@@ -170,11 +170,6 @@ def _render_verdicts(findings: tuple[Finding, ...]) -> None:
             "call path from your code, uncertain hops reviewed by the model",
             counts["path_reviewed"],
         ),
-        (
-            "assumed",
-            "never loaded, assuming configuration names no other module (approve to clear)",
-            counts["cleared_assumed"],
-        ),
         ("open", "needs review: no verified evidence either way", counts["open"]),
     ]
     for outcome, how, count in rows:
@@ -187,11 +182,6 @@ def _render_verdicts(findings: tuple[Finding, ...]) -> None:
         f"({cleared} of {len(findings)} cleared with evidence); "
         f"[bold]{reachable}[/bold] proven reachable with a call path"
     )
-    if counts["cleared_assumed"]:
-        console.print(
-            f"{counts['cleared_assumed']} more never loaded, assuming configuration names no "
-            "other module: not cleared until a person approves them (ADR 0022)"
-        )
 
 
 def _render_usage(stack: ModelStack) -> None:

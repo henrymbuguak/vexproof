@@ -39,7 +39,6 @@ class Closure(BaseModel):
     reached: frozenset[str]
     unreached: frozenset[str] = frozenset()
     blockers: tuple[str, ...] = ()
-    assumed_reached: frozenset[str] = frozenset()  # ADR 0022; absent from older scans
 
 
 class ScanRecord(BaseModel):
@@ -111,8 +110,6 @@ class Evaluation:
     paths: tuple[PathCheck, ...]
     executed_open: tuple[Finding, ...]
     gold: tuple[GoldCheck, ...] = field(default=())
-    # ADR 0022: assumed clears, checked like clears and reported apart from them
-    assumed_clears: tuple[ClearCheck, ...] = field(default=())
 
     @property
     def alerts(self) -> int:
@@ -177,7 +174,6 @@ def evaluate(
             and any(s in observation.executed_functions for s in f.evidence.vulnerable_symbols)
         ),
         gold=tuple(_gold(gold, record.findings)),
-        assumed_clears=tuple(_clear(f, observation) for f in record.findings if f.assumed_clear),
     )
 
 

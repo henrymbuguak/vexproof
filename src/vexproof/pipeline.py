@@ -86,11 +86,6 @@ class ModuleClosure:
     reached: tuple[str, ...]
     unreached: tuple[str, ...]
     blockers: tuple[str, ...]
-    # ADR 0022: modules only the assumed closure reaches, the imports it rests on, and what
-    # blocks assumed clears too
-    assumed_reached: tuple[str, ...] = ()
-    assumed_on: tuple[str, ...] = ()
-    assumed_blockers: tuple[str, ...] = ()
 
     @classmethod
     def of(cls, reach: ModuleReach) -> ModuleClosure:
@@ -98,9 +93,6 @@ class ModuleClosure:
             reached=tuple(sorted(reach.reached)),
             unreached=tuple(sorted(set(reach.modules) - set(reach.reached))),
             blockers=tuple(reach.blockers),
-            assumed_reached=tuple(sorted(reach.assumed_reached)),
-            assumed_on=tuple(reach.assumed_on),
-            assumed_blockers=tuple(reach.assumed_blockers),
         )
 
 
@@ -302,17 +294,12 @@ def prove(
 
 
 def verdict_counts(findings: Sequence[Finding]) -> dict[str, int]:
-    """How each alert stands: cleared (and how), proven reachable (and how), or open.
-
-    `cleared_assumed` (ADR 0022) are open alerts cleared only under the configuration
-    assumption, pending a person's approval; they are not counted as cleared or as open.
-    """
+    """How each alert stands: cleared (and how), proven reachable (and how), or open."""
     counts = {
         "cleared_package": 0,
         "cleared_module": 0,
         "path_certain": 0,
         "path_reviewed": 0,
-        "cleared_assumed": 0,
         "open": 0,
     }
     for finding in findings:
@@ -321,8 +308,6 @@ def verdict_counts(findings: Sequence[Finding]) -> dict[str, int]:
             counts["cleared_module" if MODULE_NOT_LOADED in checks else "cleared_package"] += 1
         elif finding.verdict is Verdict.AFFECTED:
             counts["path_reviewed" if PATH_REVIEWED in checks else "path_certain"] += 1
-        elif finding.assumed_clear:
-            counts["cleared_assumed"] += 1
         else:
             counts["open"] += 1
     return counts

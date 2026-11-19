@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 
 from tests.report_fixtures import DJANGO, INTERNAL, PUBLIC, finding, mixed
-from vexproof.domain import ASSUMED_CLEAR_CHECK, Level, ServiceProfile, Verdict
+from vexproof.domain import Level, ServiceProfile, Verdict
 from vexproof.report.context import package_purl, product_purl, short_symbol
 from vexproof.report.priority import (
     Outcome,
@@ -136,28 +136,8 @@ def test_cleared_reasons_and_outcomes() -> None:
         Outcome.CLEARED_MODULE: 1,
         Outcome.PATH_CERTAIN: 1,
         Outcome.PATH_REVIEWED: 1,
-        Outcome.CLEARED_ASSUMED: 0,
         Outcome.OPEN: 2,
     }
-
-
-def test_an_assumed_clear_is_counted_apart_and_stays_to_review() -> None:
-    open_alert = finding("GHSA-a")
-    assert open_alert.evidence is not None
-    assumed = open_alert.model_copy(
-        update={
-            "evidence": open_alert.evidence.model_copy(
-                update={"checks_passed": (ASSUMED_CLEAR_CHECK,), "assumed_on": ("lib.load:4",)}
-            )
-        }
-    )
-    assert assumed.assumed_clear
-    (ranked,) = rank([assumed])
-    assert ranked.outcome is Outcome.CLEARED_ASSUMED
-    assert ranked.tier is Tier.REVIEW  # never "not affected" without a person's approval
-    assert ranked.brief.startswith("never loaded, assuming configuration names no other module")
-    counts = outcome_counts([assumed, open_alert])
-    assert (counts[Outcome.CLEARED_ASSUMED], counts[Outcome.OPEN]) == (1, 1)
 
 
 def test_order_and_score() -> None:

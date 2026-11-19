@@ -46,7 +46,6 @@ class Outcome(StrEnum):
     CLEARED_MODULE = "cleared_module"
     PATH_CERTAIN = "path_certain"
     PATH_REVIEWED = "path_reviewed"
-    CLEARED_ASSUMED = "cleared_assumed"  # ADR 0022: open until a person approves it
     OPEN = "open"
 
 
@@ -90,9 +89,6 @@ class Upgrade:
             return False
 
 
-ASSUMED_REASON = "never loaded, assuming configuration names no other module: approve to clear it"
-
-
 def outcome(finding: Finding) -> Outcome:
     evidence = finding.evidence
     if finding.verdict is Verdict.NOT_AFFECTED:
@@ -102,8 +98,6 @@ def outcome(finding: Finding) -> Outcome:
     if finding.verdict is Verdict.AFFECTED:
         reviewed = evidence is not None and evidence.chain_model is not None
         return Outcome.PATH_REVIEWED if reviewed else Outcome.PATH_CERTAIN
-    if finding.assumed_clear:
-        return Outcome.CLEARED_ASSUMED
     return Outcome.OPEN
 
 
@@ -142,9 +136,6 @@ def _rank_one(finding: Finding, profile: ServiceProfile | None) -> Ranked:
         reasons = _cleared_reasons(finding)
         return Ranked(finding, Tier.NOT_AFFECTED, score(finding), how, reasons, reasons[0])
     signals = _signal_reasons(finding)
-    if how is Outcome.CLEARED_ASSUMED:  # still to review: a person approves or rejects it
-        reasons = (ASSUMED_REASON, *signals)
-        return Ranked(finding, Tier.REVIEW, score(finding), how, reasons, ASSUMED_REASON)
     if how is Outcome.OPEN:
         reasons = (*_open_reasons(finding), *signals)
         return Ranked(finding, Tier.REVIEW, score(finding), how, reasons, "; ".join(reasons[:2]))
