@@ -65,6 +65,7 @@ class ModuleImports:
     string_refs: set[str] = field(default_factory=set)
     parsed: bool = True
     computed: list[ComputedImport] = field(default_factory=list)  # one per dynamic_computed line
+    discovers: bool = False  # lists packages, directories or entry points (ADR 0022)
 
     def merge(self, other: ModuleImports) -> None:
         self.imports |= other.imports
@@ -72,12 +73,22 @@ class ModuleImports:
         self.dynamic_computed += other.dynamic_computed
         self.string_refs |= other.string_refs
         self.computed += other.computed
+        self.discovers = self.discovers or other.discovers
 
 
 # `%` conversions and `str.format` fields: where a formatted name's variable parts are
 _PERCENT = re.compile(r"%(?:\([^)]*\))?[#0\- +]*\d*(?:\.\d+)?[sdrifx]")
 _BRACES = re.compile(r"\{[^{}]*\}")
 _SELF_NAMES = frozenset({"__name__", "__package__"})
+# Calls that find modules by listing something rather than naming them: a library that makes
+# them can import names no code spells out (Faker lists its providers' folders, then imports
+# each by name). `os.walk` is matched on its owner, since `ast.walk` and others share the name.
+_DISCOVERY = frozenset(
+    {
+        "iter_modules", "walk_packages", "listdir", "scandir", "iterdir", "glob", "iglob",
+        "rglob", "entry_points", "iter_entry_points", "get_entry_map", "contents",
+    }
+)  # fmt: skip
 
 
 def _literal(node: ast.expr, module: str | None, is_package: bool) -> str | None:
@@ -204,19 +215,94 @@ def scan_source(text: str, module: str | None = None, *, is_package: bool = Fals
                 found.imports.add(target)
             found.imports |= {_join(target, a.name) for a in node.names if a.name != "*"}
         elif isinstance(node, ast.Call) and _call_name(node) in _DYNAMIC and node.args:
-            first = node.args[0]
-            if isinstance(first, ast.Constant) and isinstance(first.value, str):
-                if first.value.startswith("."):
-                    continue  # relative dynamic import; its package is already imported
-                found.dynamic_literals.add(first.value)
-            else:
-                found.dynamic_computed.append(node.lineno)
-                found.computed.append(classify(first, node.lineno, module, is_package=is_package))
+            _dynamic(node, module, is_package, found)
+        elif isinstance(node, ast.Call) and _discovers(node):
+            found.discovers = True
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             value = node.value
             if len(value) <= _MAX_STRING_REF and _DOTTED.match(value):
                 found.string_refs.add(value)
     return found
+
+
+def _discovers(node: ast.Call) -> bool:
+    name = _call_name(node)
+    if name == "walk":
+        func = node.func
+        return (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and (func.value.id == "os")
+        )
+    return name in _DISCOVERY
+
+
+def _argument(node: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    if len(node.args) > position:
+        return node.args[position]
+    return next((k.value for k in node.keywords if k.arg == keyword), None)
+
+
+def _relative(name: str, package: str) -> str | None:
+    """`.sub` against `pkg.mod` -> `pkg.mod.sub`, as importlib resolves it; None if it cannot."""
+    level = len(name) - len(name.lstrip("."))
+    rest = name[level:]
+    parts = package.split(".") if package else []
+    if not parts or level - 1 >= len(parts):
+        return None
+    base = ".".join(parts[: len(parts) - (level - 1)])
+    return f"{base}.{rest}" if rest else base
+
+
+def _dynamic(node: ast.Call, module: str | None, is_package: bool, found: ModuleImports) -> None:
+    """Record a call to import_module / __import__ / import_string by what it can load.
+
+    Relative names (`import_module(".sub", package)`) resolve against their package, and
+    `__import__("pkg", fromlist=[...])` loads each entry as a submodule of `pkg`: a literal entry
+    by name, a computed one as anything under `pkg`. What stays computed is classified
+    (`ComputedImport`).
+    """
+    first = node.args[0]
+    line = node.lineno
+    text = _literal(first, module, is_package)
+    function = _call_name(node)
+
+    def computed(found_import: ComputedImport) -> None:
+        found.dynamic_computed.append(line)
+        found.computed.append(found_import)
+
+    package_node = _argument(node, 1, "package") if function == "import_module" else None
+    package = _literal(package_node, module, is_package) if package_node is not None else None
+    if text is not None:
+        if text.startswith("."):
+            resolved = _relative(text, package) if package is not None else None
+            if resolved is not None:
+                found.dynamic_literals.add(resolved)
+            elif text.strip("."):  # relative to a package passed in: it ends with this name
+                computed(ComputedImport(line, "pattern", suffix="." + text.lstrip(".")))
+            else:
+                computed(ComputedImport(line, "opaque"))
+            return
+        found.dynamic_literals.add(text)
+        fromlist = _argument(node, 3, "fromlist") if function == "__import__" else None
+        if fromlist is not None:
+            entries = fromlist.elts if isinstance(fromlist, (ast.List, ast.Tuple)) else None
+            literal = [_literal(e, module, is_package) for e in entries or ()]
+            if entries is not None and all(v is not None for v in literal):
+                found.dynamic_literals |= {f"{text}.{v}" for v in literal if v and v != "*"}
+            else:
+                computed(ComputedImport(line, "pattern", prefix=f"{text}."))
+        return
+    kind = classify(first, line, module, is_package=is_package)
+    if kind.kind == "pattern" and kind.prefix.startswith("."):
+        resolved = _relative(kind.prefix + "x", package) if package is not None else None
+        if resolved is not None:  # the relative prefix, resolved, then the variable part
+            kind = ComputedImport(line, "pattern", prefix=resolved[:-1], suffix=kind.suffix)
+        elif kind.suffix:
+            kind = ComputedImport(line, "pattern", suffix=kind.suffix)
+        else:
+            kind = ComputedImport(line, "opaque")
+    computed(kind)
 
 
 def _scan_lines(text: str, module: str | None, is_package: bool) -> ModuleImports:

@@ -50,11 +50,24 @@ Still blocking, for both kinds of clear:
 - a computed import in the project's own code, until a reviewer records that site as reviewed
   for that project (a list kept with the project, each entry with its reason);
 - a built name with no literal part to match (`"%s" % x`, `"".join(parts)`, `f"{a}{b}"`);
+- **any** computed import of a distribution that finds modules by listing something: a package
+  (`pkgutil.iter_modules`, `walk_packages`), a directory (`os.listdir`, `os.walk`, `scandir`,
+  `glob`, `Path.iterdir`) or entry points. Its names come from the file system or package
+  metadata, not from code, so the assumption does not hold for it. The whole distribution
+  counts, since Faker lists folders in `faker.utils.loading` and imports the names in
+  `faker.factory`;
 - a package whose source could not be read;
 - a fix that changes compiled code (ADR 0008), and none-match picks (ADR 0020), as today.
 
 ### 3. Changes to strict clears
 
+- **Relative and `fromlist` dynamic imports are read fully.** `import_module(".sub", package)`
+  now reaches `package.sub` (it was skipped), and `__import__("pkg", fromlist=[...])` reaches each
+  listed submodule (they were ignored); computed entries count as a pattern under `pkg`. These
+  only widen the closure, closing two gaps found while reading real blockers.
+- **Compiled code that imports Python modules is covered by reviewed rules**, read from the C
+  sources: psycopg2's extension imports `psycopg2.errors`, `extensions`, `extras`, `sql` and
+  `tz`. A rule only widens the closure.
 - **Repository configuration files** (`.yaml`, `.yml`, `.toml`, `.ini`, `.cfg`, `.json`, `.env`
   and `.env.*` files, outside test and vendored folders) are scanned for dotted strings, which
   join the closure like strings in code. This only widens the closure: it can remove a clear,
@@ -97,6 +110,17 @@ Still blocking, for both kinds of clear:
   lower bound, as for strict clears (ADR 0011).
 - Names supplied only at deployment (environment, command line, database) are outside the
   assumption by definition; the impact statement says so.
+- Compiled code can import Python modules that no source scan sees. Each case needs a reviewed
+  rule (section 3); the import sweep of every benchmark project is what finds the ones left.
+
+## Evidence so far
+
+- The babybuddy sweep (19 November 2026) found the closure unsound: 45 loaded modules missing,
+  from Faker's providers (found by listing folders), what they import (PyYAML,
+  `text_unidecode`), and `psycopg2.errors` (imported by compiled code). Its 10 assumed clears
+  were not contradicted, but only because none was in Faker. The discovery rule and the
+  psycopg2 rule above are the response, and both closures must pass that sweep again.
+- healthchecks: sound, and 0 of 4 assumed clears contradicted.
 
 ## Consequences
 

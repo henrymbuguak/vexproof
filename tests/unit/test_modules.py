@@ -225,3 +225,59 @@ def test_configuration_files_name_modules_for_both_closures(tmp_path: Path) -> N
     in_tests = {**PROJECT, "tests/fixtures.yaml": "backend: PIL.ImageMath\n"}
     reach, _, _ = build(tmp_path / "b", project=in_tests)
     assert not reach.is_reached("PIL.ImageMath")
+
+
+def test_a_library_that_discovers_modules_blocks_assumed_clears(tmp_path: Path) -> None:
+    # Faker lists its providers' folders in one module and imports each name in another: the
+    # names come from the file system, so no computed import of the library is assumable.
+    faker = Package(name="faker", version="0.7.17")
+    trees = {
+        PILLOW: make_tree(tmp_path / "sources", PILLOW, LIBRARY),
+        faker: make_tree(
+            tmp_path / "sources",
+            faker,
+            {
+                "faker/__init__.py": "from faker import factory\n",
+                "faker/loading.py": "import os\n\ndef names(path):\n    return os.listdir(path)\n",
+                "faker/factory.py": (
+                    "import importlib\nfrom faker import loading\n\ndef create(path):\n"
+                    "    return importlib.import_module(path)\n"
+                ),
+                "faker/providers/__init__.py": "",
+                "faker/providers/address.py": "import PIL.ImageMath\n",
+            },
+        ),
+    }
+    project = {**PROJECT, "shop/settings.py": "import faker\n"}
+    reach = module_reachability(write_project(tmp_path / "p", project), trees, {})
+    assert reach.assumed_on == []
+    assert reach.assumed_blockers[0].startswith(
+        "reached code imports modules it finds by listing packages, directories or entry points: "
+        "faker.factory:5"
+    )
+    # and every module of the library is in both closures, with what it imports
+    assert reach.reached["faker.providers.address"] == "faker finds its own modules by listing them"
+    assert reach.is_reached("PIL.ImageMath")  # imported by a provider nothing names
+
+
+def test_reviewed_frameworks_are_not_treated_as_discovering(tmp_path: Path) -> None:
+    # Django and Pillow list packages too, but their discovery is covered by framework rules.
+    library = {
+        **LIBRARY,
+        "PIL/ImageFont.py": "import os\n\ndef fonts(d):\n    return os.listdir(d)\n",
+    }
+    reach, _, _ = build(tmp_path, library=library)
+    assert not reach.is_reached("PIL.ImageMath")
+
+
+def test_psycopg2s_compiled_code_reaches_the_modules_it_imports(tmp_path: Path) -> None:
+    psycopg2 = Package(name="psycopg2", version="2.8.6")
+    files = {"psycopg2/__init__.py": "from psycopg2._psycopg import connect\n"}
+    files |= {f"psycopg2/{n}.py": "" for n in ("errors", "extensions", "extras", "sql", "tz")}
+    files["psycopg2/pool.py"] = ""  # not imported by the extension: stays unreached
+    trees = {psycopg2: make_tree(tmp_path / "sources", psycopg2, files)}
+    project = {**PROJECT, "shop/settings.py": "import psycopg2\n"}
+    reach = module_reachability(write_project(tmp_path / "p", project), trees, {})
+    assert reach.reached["psycopg2.errors"] == "psycopg2's compiled extension imports it on load"
+    assert all(reach.is_reached(f"psycopg2.{n}") for n in ("extensions", "extras", "sql", "tz"))
+    assert not reach.is_reached("psycopg2.pool")

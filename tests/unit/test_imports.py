@@ -152,3 +152,71 @@ def test_a_pattern_matches_only_modules_with_both_ends() -> None:
     assert not base.matches("django.db.backends.sqlite3.operations")
     (plain,) = scan_source("import_module(name)\n", "x").computed
     assert not plain.matches("anything")  # only patterns match by name
+
+
+# -- relative names, fromlist and discovery: soundness fixes found by reading real blockers -----
+
+
+@pytest.mark.parametrize(
+    ("call", "literals"),
+    [
+        # a relative name resolves against its package, as importlib does
+        ('import_module(".admin", "shop.apps")', {"shop.apps.admin"}),
+        ('import_module("..models", package="shop.apps")', {"shop.models"}),
+        ('import_module(".tasks", __name__)', {"app.views.tasks"}),
+        ('import_module(".tasks", __package__)', {"app.tasks"}),
+        # __import__ with a fromlist loads each entry as a submodule
+        ('__import__("pkg", fromlist=["alpha", "beta"])', {"pkg", "pkg.alpha", "pkg.beta"}),
+        ('__import__("pkg", None, None, ["gamma"])', {"pkg", "pkg.gamma"}),
+    ],
+)
+def test_relative_and_fromlist_imports_reach_their_submodules(
+    call: str, literals: set[str]
+) -> None:
+    found = scan_source(f"{call}\n", "app.views")
+    assert found.dynamic_literals == literals
+    assert found.dynamic_computed == []
+
+
+@pytest.mark.parametrize(
+    ("call", "prefix", "suffix", "literals"),
+    [
+        # a computed fromlist: anything under the package
+        ("__import__(__name__, fromlist=[locale])", "app.views.", "", {"app.views"}),
+        # a relative built name resolves its literal part against the package
+        ('import_module(f".{name}", __name__)', "app.views.", "", set()),
+        ('import_module("." + name, "plugins")', "plugins.", "", set()),
+        # relative to a package passed in: only the end of the name is known
+        ('import_module(".admin", app)', "", ".admin", set()),
+    ],
+)
+def test_partly_known_relative_and_fromlist_imports_become_patterns(
+    call: str, prefix: str, suffix: str, literals: set[str]
+) -> None:
+    found = scan_source(f"{call}\n", "app.views")
+    (computed,) = found.computed
+    assert (computed.kind, computed.prefix, computed.suffix) == ("pattern", prefix, suffix)
+    assert found.dynamic_literals == literals
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "pkgutil.iter_modules([path])",
+        "pkgutil.walk_packages(pkg.__path__)",
+        "os.listdir(path)",
+        "os.walk(root)",
+        "os.scandir(path)",
+        "Path(path).iterdir()",
+        "glob.glob(pattern)",
+        "importlib.metadata.entry_points()",
+        "pkg_resources.iter_entry_points('plugins')",
+    ],
+)
+def test_listing_packages_directories_or_entry_points_is_discovery(call: str) -> None:
+    assert scan_source(f"{call}\n", "lib.loading").discovers
+
+
+def test_other_calls_named_walk_are_not_discovery() -> None:
+    assert not scan_source("ast.walk(tree)\n", "lib.x").discovers
+    assert not scan_source("import_module(name)\n", "lib.x").discovers

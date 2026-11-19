@@ -47,7 +47,7 @@ from vexproof.static.project import (
     python_files,
 )
 
-_CACHE = "vexproof-modules.v4.json"  # v4: what each computed import's name is made of
+_CACHE = "vexproof-modules.v5.json"  # v5: relative and fromlist imports resolved; discovery
 PROJECT = "<project>"
 
 
@@ -101,6 +101,7 @@ def _scan_tree(tree: SourceTree) -> dict[str, ModuleImports]:
                 string_refs=set(v["string_refs"]),
                 parsed=v["parsed"],
                 computed=[ComputedImport(**c) for c in v["computed"]],
+                discovers=v["discovers"],
             )
             for m, v in data.items()
         }
@@ -124,6 +125,7 @@ def _scan_tree(tree: SourceTree) -> dict[str, ModuleImports]:
                 {"line": c.line, "kind": c.kind, "prefix": c.prefix, "suffix": c.suffix}
                 for c in s.computed
             ],
+            "discovers": s.discovers,
         }
         for m, s in scans.items()
     }
@@ -237,8 +239,18 @@ def module_reachability(
 ) -> ModuleReach:
     reach = ModuleReach()
     scans, computed_in_project = _load(project_root, trees, reach)
+    # Reviewed distributions (Django, Pillow) and modules have their discovery covered by
+    # framework rules already: Django's apps, management commands and migrations rules.
+    discovering = {
+        reach.modules[m].owner
+        for m, s in scans.items()
+        if s.discovers
+        and reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
+        and not covered_module(m)
+    }
     _close(reach, scans)
     _close(reach, scans, config_seeds(project_root))  # strict: configuration files only widen it
+    _discovered(reach, scans, discovering)
 
     def uncovered(reached: Iterable[str]) -> list[tuple[str, ComputedImport]]:
         return sorted(
@@ -267,8 +279,30 @@ def module_reachability(
         names = ", ".join(sorted(p.name for p in failures)[:5])
         shared.append(f"could not read the source of {names}, so its imports are unknown")
     reach.blockers += shared
-    _assume(reach, scans, uncovered, shared)
+    _assume(reach, scans, uncovered, shared, discovering)
     return reach
+
+
+def _discovered(
+    reach: ModuleReach, scans: Mapping[str, ModuleImports], discovering: set[str]
+) -> None:
+    """A reached library that finds modules by listing them can load any module of its own.
+
+    Faker lists the folders of `faker.providers` and imports each by name, so every module of a
+    discovering distribution joins the closure once any of its modules is reached, and growth
+    goes on from there (what Faker's providers import). This only widens the closure.
+    """
+    while True:
+        owners = {reach.modules[m].owner for m in reach.reached} & discovering
+        seeds = sorted(
+            m for m, src in reach.modules.items() if src.owner in owners and m not in reach.reached
+        )
+        if not seeds:
+            return
+        reasons = {
+            m: f"{reach.modules[m].owner} finds its own modules by listing them" for m in seeds
+        }
+        _close(reach, scans, [(m, reasons[m]) for m in seeds])
 
 
 def _computed(scan: ModuleImports) -> list[ComputedImport]:
@@ -283,8 +317,18 @@ def _assume(
     scans: Mapping[str, ModuleImports],
     uncovered: Callable[[Iterable[str]], list[tuple[str, ComputedImport]]],
     shared: list[str],
+    discovering: set[str],
 ) -> None:
-    """Grow the wider closure of ADR 0022 and record what an assumed clear rests on."""
+    """Grow the wider closure of ADR 0022 and record what an assumed clear rests on.
+
+    A distribution that finds modules by listing packages, directories or entry points can import
+    names no code spells out, so none of its computed imports is assumable: they block assumed
+    clears too.
+    """
+
+    def assumable(m: str, c: ComputedImport) -> bool:
+        return c.kind != "opaque" and reach.modules[m].owner not in discovering
+
     wide = ModuleReach(
         modules=reach.modules,
         reached=dict(reach.reached),
@@ -292,7 +336,9 @@ def _assume(
         project_modules=reach.project_modules,
     )
     while True:
-        patterns = [c for _, c in uncovered(wide.reached) if c.kind == "pattern"]
+        patterns = [
+            c for m, c in uncovered(wide.reached) if c.kind == "pattern" and assumable(m, c)
+        ]
         matches = sorted(
             m for m in wide.modules if m not in wide.reached and any(p.matches(m) for p in patterns)
         )
@@ -304,9 +350,16 @@ def _assume(
         if m in wide.via:
             reach.via.setdefault(m, wide.via[m])  # so why() explains assumed modules too
     relied = uncovered(wide.reached)
-    reach.assumed_on = [f"{m}:{c.line}" for m, c in relied if c.kind != "opaque"]
+    reach.assumed_on = [f"{m}:{c.line}" for m, c in relied if assumable(m, c)]
     opaque = [f"{m}:{c.line}" for m, c in relied if c.kind == "opaque"]
+    found = [f"{m}:{c.line}" for m, c in relied if c.kind != "opaque" and not assumable(m, c)]
     reach.assumed_blockers = list(shared)
+    if found:
+        reach.assumed_blockers.insert(
+            0,
+            "reached code imports modules it finds by listing packages, directories or entry "
+            "points: " + ", ".join(found[:3]),
+        )
     if opaque:
         reach.assumed_blockers.insert(
             0,
