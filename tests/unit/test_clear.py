@@ -43,22 +43,47 @@ def test_unloaded_module_clears(reach: ModuleReach) -> None:
     assert cleared.evidence.notes[-1].startswith("never loaded by your code: PIL.ImageMath")
 
 
-def test_picks_decide_which_modules_count(reach: ModuleReach) -> None:
-    # COLOR's module is loaded, but the verified pick is in ImageMath: cleared
-    evidence = Evidence(
+def test_a_pick_never_narrows_a_clear(reach: ModuleReach) -> None:
+    # ADR 0020: the verified pick is in unloaded ImageMath, but the fix also changes ImageColor,
+    # which is loaded. Every changed module counts, so the pick cannot clear the alert.
+    picked = Evidence(
         level=Level.L1_SYMBOL,
         candidates=(MATH, COLOR),
         vulnerable_symbols=(MATH.qualname,),
         symbol_model="m",
     )
-    assert clear_by_module(_finding(evidence), reach).verdict is Verdict.NOT_AFFECTED
-    # no picks: every candidate counts, and ImageColor is loaded
-    loaded = clear_by_module(
+    held = clear_by_module(_finding(picked), reach)
+    assert held.verdict is None
+    assert held.evidence is not None
+    assert held.evidence.notes[-1].startswith("module loaded by your code: PIL.ImageColor")
+    # the same with no pick at all: the outcome does not depend on the model
+    unpicked = clear_by_module(
         _finding(Evidence(level=Level.L1_SYMBOL, candidates=(MATH, COLOR))), reach
     )
-    assert loaded.verdict is None
-    assert loaded.evidence is not None
-    assert loaded.evidence.notes[-1].startswith("module loaded by your code: PIL.ImageColor")
+    assert unpicked.verdict is None
+    assert unpicked.evidence == held.evidence.model_copy(
+        update={"vulnerable_symbols": (), "symbol_model": None}
+    )
+    # module-level changes count too, even when the pick's module is unloaded
+    with_module_change = picked.model_copy(
+        update={"candidates": (MATH,), "changed_modules": ("PIL.ImageColor",)}
+    )
+    assert clear_by_module(_finding(with_module_change), reach).verdict is None
+
+
+def test_a_pick_does_not_block_a_clear_when_every_changed_module_is_unloaded(
+    reach: ModuleReach,
+) -> None:
+    picked = Evidence(
+        level=Level.L1_SYMBOL,
+        candidates=(MATH,),
+        vulnerable_symbols=(MATH.qualname,),
+        symbol_model="m",
+    )
+    cleared = clear_by_module(_finding(picked), reach)
+    assert cleared.verdict is Verdict.NOT_AFFECTED
+    assert cleared.evidence is not None
+    assert MODULE_NOT_LOADED in cleared.evidence.checks_passed
 
 
 def test_never_cleared_here(reach: ModuleReach) -> None:

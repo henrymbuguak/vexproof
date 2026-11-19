@@ -113,6 +113,28 @@ def test_clears_paths_and_misses() -> None:
     assert result.scan_seconds == 32.0
 
 
+def test_a_clear_is_falsified_by_any_changed_module_not_just_the_picked_one() -> None:
+    # ADR 0020: the pick is in ImageMath, which did not load, but the fix also changed
+    # GifImagePlugin, which did. The pick does not narrow the check, so the clear is contradicted.
+    base = _cleared("GHSA-pick", "PIL.ImageMath")
+    gif = Candidate(
+        qualname="PIL.GifImagePlugin.fn", module="PIL.GifImagePlugin", file="g.py", changed_lines=1
+    )
+    evidence = base.evidence.model_copy(
+        update={
+            "candidates": (*base.evidence.candidates, gif),
+            "vulnerable_symbols": ("PIL.ImageMath.fn",),
+            "symbol_model": "m",
+        }
+    )
+    picked = base.model_copy(update={"evidence": evidence})
+    result = evaluate(_record(findings=[picked.model_dump(mode="json")]), _observation())
+    (check,) = result.clears
+    assert check.status == "falsified"
+    assert check.modules == ("PIL.GifImagePlugin", "PIL.ImageMath")
+    assert check.loaded == ("PIL.GifImagePlugin",)
+
+
 def test_closure_soundness() -> None:
     result = evaluate(_record(), _observation())
     closure = result.closure

@@ -1,6 +1,7 @@
 # ADR 0008: Clear at module level, with framework rules written down
 
-**Status:** accepted · **Date:** 2026-10-29
+**Status:** accepted, amended by ADR 0020 (every changed module decides a clear; a verified pick
+no longer narrows the set) · **Date:** 2026-10-29
 
 ## Context
 After Level 0 (ADR 0006), every alert in a used package stays open. On a real Django shop all

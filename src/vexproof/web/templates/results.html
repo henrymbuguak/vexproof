@@ -92,7 +92,7 @@
 
   <section class="block" id="cleared" aria-labelledby="cleared-title">
     <h2 id="cleared-title">Not affected</h2>
-    <p class="section-lead">The module holding the vulnerable function is never loaded by your code, nor by anything it loads.{% if view.evaluation and view.evaluation.sound %} When the app was run, <a href="/scans/{{ job_id }}/evaluation">none of these modules loaded</a>.{% endif %}</p>
+    <p class="section-lead">No module the fix changed is ever loaded by your code, nor by anything it loads.{% if view.evaluation and view.evaluation.sound %} When the app was run, <a href="/scans/{{ job_id }}/evaluation">none of these modules loaded</a>.{% endif %}</p>
     {% if cleared %}
     <ul class="alert-list">{% for item in cleared %}{% include "_alert_row.html" %}{% endfor %}</ul>
     {% else %}

@@ -198,7 +198,7 @@ def _clear(finding: Finding, observation: Observation) -> ClearCheck:
     evidence = finding.evidence
     modules: set[str] | None = None
     if evidence is not None and evidence.level is not Level.L0_NOT_IMPORTED:
-        modules = relevant_modules(finding, {c.qualname: c.module for c in evidence.candidates})
+        modules = relevant_modules(finding)
     if not modules:  # package-level clears are checked through the closure as a whole
         return ClearCheck(finding, (), "uncheckable")
     loaded = tuple(sorted(m for m in modules if m in observation.loaded_modules))
