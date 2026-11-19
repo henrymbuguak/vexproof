@@ -170,7 +170,15 @@ def _close(reach: ModuleReach, scans: Mapping[str, ModuleImports]) -> None:
             scan = scans[module]
             for name in sorted(scan.imports | scan.dynamic_literals):
                 add(resolve(name), f"imported by {module}", module)
+            in_project = module in reach.project_modules
             for name in sorted(scan.string_refs):
+                if "." not in name and not in_project:
+                    # A bare word in library code ("py" as a Pygments language, "json" as a
+                    # format) is not evidence of a module reference. Project code keeps every
+                    # string: Django's INSTALLED_APPS lists one-word apps. A library that does
+                    # import such a word by name passes it to an import function, which is a
+                    # literal import or a computed one, recorded separately.
+                    continue
                 add(resolve(name), f"named in a string in {module}", module)
         paths = {m: s.path for m, s in reach.modules.items()}
         for rule in RULES:

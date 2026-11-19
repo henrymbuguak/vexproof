@@ -1,0 +1,14 @@
+# A throwaway interpreter for the import sweep (ADR 0011): third-party project code runs here,
+# never on the host. Build tools let old pinned packages compile when no wheel exists.
+#   docker build -t vexproof-sweep:py3.8 --build-arg PY=3.8 -f Dockerfile.sweep .
+ARG PY=3.8
+FROM python:${PY}-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential pkg-config libpq-dev libjpeg-dev zlib1g-dev libffi-dev libssl-dev \
+      libxml2-dev libxslt1-dev git \
+ && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --uid 10001 sweep
+USER sweep
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PATH="/home/sweep/.local/bin:${PATH}"
+WORKDIR /home/sweep

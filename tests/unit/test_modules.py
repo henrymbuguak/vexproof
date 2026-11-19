@@ -29,6 +29,31 @@ def test_strings_naming_modules_reach_them(tmp_path: Path) -> None:
     assert reach.reached["PIL.ImageMath"] == "named in a string in shop.settings"
 
 
+def test_a_bare_word_in_library_code_names_no_module(tmp_path: Path) -> None:
+    # Pygments calls a language "py"; the py package is not loaded because of it. A dotted
+    # string in the same library, and a bare word in project code, still count.
+    lexers = Package(name="lexers", version="1.0")
+    word = Package(name="py", version="1.11.0")
+    sources = tmp_path / "sources"
+    trees = {
+        PILLOW: make_tree(sources, PILLOW, LIBRARY),
+        lexers: make_tree(
+            sources,
+            lexers,
+            {"lexers/__init__.py": 'ALIASES = ["py", "python"]\nDEFAULT = "PIL.ImageMath"\n'},
+        ),
+        word: make_tree(sources, word, {"py/__init__.py": ""}),
+    }
+    imports_lexers = {**PROJECT, "shop/settings.py": "import lexers\n"}
+    reach = module_reachability(write_project(tmp_path / "one", imports_lexers), trees, {})
+    assert reach.is_reached("lexers")
+    assert not reach.is_reached("py")  # a bare word in a library: not a reference
+    assert reach.reached["PIL.ImageMath"] == "named in a string in lexers"  # dotted: still is
+    names_py = {**PROJECT, "shop/settings.py": 'INSTALLED_APPS = ["py"]\n'}
+    reach = module_reachability(write_project(tmp_path / "two", names_py), trees, {})
+    assert reach.reached["py"] == "named in a string in shop.settings"  # project code: counts
+
+
 def test_blockers(tmp_path: Path) -> None:
     other = Package(name="otherlib", version="1.0")
     trees = {
