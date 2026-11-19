@@ -572,6 +572,23 @@ Phase 0 has about eight days alongside exam preparation. The first four tasks ar
 
 Acceptance: all 355 existing tests pass; a table of cost and pick agreement per tier exists; every existing Muse recording replays under an unchanged key, and a Claude scan replays offline from its own recordings.
 
+### Phase 1a: Make clears scale, soundly (about one week, before Phase 1)
+
+Added after the first feasibility pass (`eval/results/phase1-feasibility-pass1.md`): on 11 real
+applications today's rules give 2 module-level clears, because every project has a blocker, and
+88 alerts are held back by one. The benchmark's false-clear bound is meaningless until that
+changes, and choosing other projects does not change it.
+
+- [ ] Scope blockers to what a computed import could load (ADR 0022): a literal prefix confines it
+  to one package; an unbounded name still blocks everything
+- [ ] Find why pytest and IPython are reached from production code
+- [ ] Read nested requirements files (`-r` includes, `requirements/` folders)
+- [ ] Prove the closure sound on run-time observations of several projects (the import sweep)
+- [ ] Repeat the feasibility pass and set the false-clear target from the groups available
+
+Acceptance: every module loaded at run time on the observed projects is in the closure; no clear
+is contradicted; the repeated pass reports the groups available.
+
 ### Phase 1: Benchmark (weeks 1 to 3, from 28 Nov)
 
 Begin with a two-day feasibility check before any labelling: confirm each candidate project installs and runs its tests from a lockfile or container, then run the current pipeline and count deterministic clears. If ten projects will not install, go ahead with six. Count independent groups, not clears. If they yield fewer than 150 groups, restate the false-clear target for the number available (60 groups gives a 5% bound) before the benchmark is built, not after, and prefer adding projects with different package versions over adding alerts.
