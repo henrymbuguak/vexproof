@@ -489,14 +489,17 @@ def check_model_command(
     settings = Settings()
     config = model_config(settings)
     say = functools.partial(console.print, soft_wrap=True)
-    say(escape(f"endpoint: {config.base_url} | model: {config.model} | api: {config.api}"))
-    if config.local:
+    endpoint = "Claude API" if config.api == "anthropic" else config.base_url
+    say(escape(f"endpoint: {endpoint} | model: {config.model} | api: {config.api}"))
+    if config.api == "anthropic":
+        say("credentials: ANTHROPIC_API_KEY or an `ant auth login` profile, found by the SDK")
+    elif config.local:
         say("local model server: no API key needed")
     elif not config.api_key:
         say("[red]NO-GO[/red]: MODEL_API_KEY is not set (add it to .env)")
         raise typer.Exit(code=1)
     try:
-        models = list_models(config.api_key or "local", config.base_url)
+        models = list_models(config.api_key or "local", config.base_url, api=config.api)
         say(escape(f"models available: {', '.join(models) or '(none listed)'}"))
         if models and config.model not in models and f"{config.model}:latest" not in models:
             model = escape(config.model)

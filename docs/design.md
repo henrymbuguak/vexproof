@@ -561,10 +561,10 @@ The benchmark dataset lives in its own repository so others can cite and extend 
 
 - [x] Make clears independent of the pick (ADR 0020); a recount shows all 30 existing clears survive the stricter rule, so this changes no published result
 - [x] Extend `ModelRequest` and `ModelResponse`, adapt `MetaTransport`, and prove with a test that a one-message, no-tool request hashes exactly as `key()` does today, so every existing recording replays
-- [ ] Add `AnthropicTransport` for `symbol_pick` using structured outputs, explicit effort, typed errors, retry, and handlers for `refusal` and `max_tokens`
+- [x] Add `AnthropicTransport` for `symbol_pick` using structured outputs, explicit effort, typed errors, retry, and handlers for `refusal` and `max_tokens` (as `ClaudeTransport` in `llm/claude.py`)
 - [ ] Run one shop scan on Claude and record cost, refusals and agreement with existing picks
 - [ ] Change `RecordingTransport` to store every content block (text, thinking with its signature, tool-use blocks with their IDs) and replay them unchanged; add effort and thinking settings to the key only when set
-- [ ] Raise output limits for thinking models (pick, trace loop, `check-model` ping)
+- [x] Raise output limits for thinking models (pick, trace loop, `check-model` ping)
 - [ ] Make `BudgetTransport` count cache reads and writes; add `pricing.py` with a per-model price table
 - [ ] Run `vexproof check-model` and both Django scans on each Claude tier
 

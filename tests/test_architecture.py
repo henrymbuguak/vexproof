@@ -58,7 +58,8 @@ def test_only_the_model_layer_talks_to_the_model_api() -> None:
         if module.parent.name == "llm":
             continue
         source = module.read_text(encoding="utf-8")
-        assert "import openai" not in source, f"{module.relative_to(SRC)} imports openai"
+        for sdk in ("openai", "anthropic"):
+            assert f"import {sdk}" not in source, f"{module.relative_to(SRC)} imports {sdk}"
 
 
 def test_prompts_are_versioned_files() -> None:

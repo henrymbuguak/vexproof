@@ -4,14 +4,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import openai
 
 from vexproof.llm.budget import BudgetTransport
-from vexproof.llm.meta import Api, MetaTransport
+from vexproof.llm.claude import ClaudeTransport, list_claude_models
+from vexproof.llm.meta import MetaTransport
 from vexproof.llm.recording import Mode, RecordingTransport
 from vexproof.llm.structured import StructuredCaller
-from vexproof.llm.types import ModelError, Transport, is_local_endpoint
+from vexproof.llm.types import Effort, ModelError, Transport, is_local_endpoint
+
+# "responses" and "chat": OpenAI-compatible endpoints (Muse Spark, Ollama) through MetaTransport;
+# "anthropic": Claude's Messages API through ClaudeTransport.
+Api = Literal["responses", "chat", "anthropic"]
 
 
 @dataclass(frozen=True)
@@ -25,15 +31,18 @@ class ModelConfig:
     recordings_dir: Path = Path(".vexproof-cache/model")
     timeout_s: float = 120.0
     workers: int = 4
+    effort: Effort | None = None  # sent on every request when set (Claude's output_config.effort)
+    fallbacks: bool = True  # Claude: retry a refused request on the server's fallback model
 
     @property
     def local(self) -> bool:
-        return is_local_endpoint(self.base_url)
+        return self.api != "anthropic" and is_local_endpoint(self.base_url)
 
     @property
     def ready(self) -> bool:
-        """Enough configuration to call (or replay) a model."""
-        return bool(self.api_key) or self.local or self.mode == "replay"
+        """Enough configuration to call (or replay) a model. Claude's SDK finds its own
+        credentials, so choosing the anthropic API is enough; a missing one fails at the call."""
+        return self.api == "anthropic" or bool(self.api_key) or self.local or self.mode == "replay"
 
 
 @dataclass
@@ -52,20 +61,30 @@ def build_stack(config: ModelConfig, live: Transport | None = None) -> ModelStac
     if live is None and config.mode != "replay":
         if not config.ready:
             raise ModelError("MODEL_API_KEY is not set; add it to .env or use --no-model")
-        live = MetaTransport(
-            api_key=config.api_key or "local",  # local servers ignore the key; the SDK needs one
-            base_url=config.base_url,
-            model=config.model,
-            api=config.api,
-            timeout_s=config.timeout_s,
-        )
+        if config.api == "anthropic":
+            live = ClaudeTransport(
+                model=config.model, timeout_s=config.timeout_s, fallbacks=config.fallbacks
+            )
+        else:
+            live = MetaTransport(
+                api_key=config.api_key or "local",  # local servers ignore it; the SDK needs one
+                base_url=config.base_url,
+                model=config.model,
+                api=config.api,
+                timeout_s=config.timeout_s,
+            )
     recorder = RecordingTransport(live, config.recordings_dir, config.mode, model=config.model)
     budget = BudgetTransport(recorder, config.max_tokens)
-    return ModelStack(caller=StructuredCaller(budget), budget=budget, workers=config.workers)
+    caller = StructuredCaller(budget, effort=config.effort)
+    return ModelStack(caller=caller, budget=budget, workers=config.workers)
 
 
-def list_models(api_key: str, base_url: str, client: openai.OpenAI | None = None) -> list[str]:
-    """Model ids the key can use, if the endpoint supports listing."""
+def list_models(
+    api_key: str, base_url: str, client: openai.OpenAI | None = None, *, api: Api = "responses"
+) -> list[str]:
+    """Model ids the credentials can use, if the endpoint supports listing."""
+    if api == "anthropic":
+        return list_claude_models()
     try:
         client = client or openai.OpenAI(
             api_key=api_key, base_url=base_url, max_retries=1, timeout=30

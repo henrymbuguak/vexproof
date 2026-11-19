@@ -13,8 +13,7 @@ from vexproof.domain import Verdict
 from vexproof.ingest.repo import checkout
 from vexproof.intel.cache import Cache
 from vexproof.intel.http import JsonHttp, make_client
-from vexproof.llm.factory import ModelConfig, ModelStack, build_stack
-from vexproof.llm.meta import Api
+from vexproof.llm.factory import Api, ModelConfig, ModelStack, build_stack
 from vexproof.llm.recording import Mode
 from vexproof.pipeline import (
     Analyzers,
@@ -64,6 +63,8 @@ def model_config(
         recordings_dir=settings.cache_dir / "model",
         timeout_s=settings.model_timeout_s,
         workers=settings.model_workers,
+        effort=settings.model_effort,
+        fallbacks=settings.model_fallbacks,
     )
 
 

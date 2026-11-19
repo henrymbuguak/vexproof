@@ -16,7 +16,7 @@ MAX_CANDIDATES = 12
 MAX_ADVISORY_CHARS = 6000
 # Reasoning models (Muse Spark, Muse Spark Open) spend output tokens on thinking before the JSON
 # answer; too low a cap cuts the answer off. Only tokens actually generated are billed.
-MAX_OUTPUT_TOKENS = 4096
+MAX_OUTPUT_TOKENS = 16_000
 
 
 class SymbolPick(BaseModel):
