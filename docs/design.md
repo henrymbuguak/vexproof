@@ -566,7 +566,7 @@ The benchmark dataset lives in its own repository so others can cite and extend 
 - [x] Change `RecordingTransport` to store every content block (text, thinking with its signature, tool-use blocks with their IDs) and replay them unchanged; add effort and thinking settings to the key only when set
 - [x] Raise output limits for thinking models (pick, trace loop, `check-model` ping)
 - [x] Make `BudgetTransport` count cache reads and writes; add `pricing.py` with a per-model price table
-- [ ] Run `vexproof check-model` and both Django scans on each Claude tier (done: `check-model` on all three tiers, the shop scan on Haiku 5.5 and Opus 5.5; left: Sonnet 5.5 on the shop, and justdjango)
+- [x] Run `vexproof check-model` and both Django scans on each Claude tier (done: `check-model` on all three tiers, the shop scan on all three, justdjango on Haiku 5.5; Sonnet 5.5 and Opus 5.5 on justdjango moved to after Phase 2, when the cached review loop makes them cheaper and the numbers stay current)
 
 Phase 0 has about eight days alongside exam preparation. The first four tasks are the minimum; if time runs short, the rest move to the start of Phase 1.
 
