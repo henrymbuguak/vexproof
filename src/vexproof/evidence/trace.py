@@ -37,7 +37,7 @@ from vexproof.static.codeindex import CodeIndex, Scope
 PROMPT_VERSION = "trace_path.v3"
 PURPOSE = "trace_path"
 MAX_STEPS = 12
-MAX_OUTPUT_TOKENS = 4096
+MAX_OUTPUT_TOKENS = 16_000
 _RECENT = 3  # observations shown in full; older ones are shortened
 _LIST = 25
 

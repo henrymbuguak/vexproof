@@ -31,7 +31,18 @@ class BudgetExceededError(ModelError):
     """The token budget for this run is used up."""
 
 
+class ModelRefusedError(ModelError):
+    """The model declined the request (`stop_reason: refusal`). Never read as a negative answer."""
+
+
+class ModelTruncatedError(ModelError):
+    """The reply hit the output limit (`stop_reason: max_tokens`) before the answer was complete."""
+
+
 Role = Literal["user", "assistant"]
+# How hard the model thinks before answering (Claude's `output_config.effort`). It changes the
+# answer, so it is part of a request's identity; None means the transport's default.
+Effort = Literal["low", "medium", "high", "xhigh", "max"]
 # Why a reply ended, in one vocabulary for every transport; "" when the transport did not say
 # (and for answers recorded before stop reasons were kept).
 StopReason = Literal["", "end_turn", "max_tokens", "tool_use", "refusal"]
@@ -72,6 +83,7 @@ class ModelRequest:
     tools: tuple[ToolSpec, ...] = ()
     cache_points: tuple[int, ...] = ()  # message indexes that end a cacheable prefix
     max_output_tokens: int = 2000
+    effort: Effort | None = None
 
     def __post_init__(self) -> None:
         if not self.messages or self.messages[0].role != "user":
@@ -90,6 +102,7 @@ class ModelRequest:
         schema_name: str,
         schema: dict[str, Any],
         max_output_tokens: int = 2000,
+        effort: Effort | None = None,
     ) -> ModelRequest:
         """One user message and a response schema: the shape every request had before ADR 0013."""
         return cls(
@@ -100,6 +113,7 @@ class ModelRequest:
             schema_name=schema_name,
             schema=schema,
             max_output_tokens=max_output_tokens,
+            effort=effort,
         )
 
     @property
@@ -109,8 +123,9 @@ class ModelRequest:
 
     @property
     def is_single(self) -> bool:
-        """One user message and no tools: the shape that keeps its pre-ADR-0013 recording key."""
-        return len(self.messages) == 1 and not self.tools
+        """One user message, no tools and no effort setting: the shape whose recording key is the
+        same as before ADR 0013."""
+        return len(self.messages) == 1 and not self.tools and self.effort is None
 
     def key(self, model: str) -> str:
         """Stable identity of a request: same inputs and model -> same recorded answer.
@@ -141,6 +156,8 @@ class ModelRequest:
             }
             if self.tools:
                 material["tools"] = [[t.name, t.description, t.input_schema] for t in self.tools]
+            if self.effort is not None:
+                material["effort"] = self.effort
         return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
 
 

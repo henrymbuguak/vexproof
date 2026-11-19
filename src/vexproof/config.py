@@ -33,7 +33,15 @@ class Settings(BaseSettings):
     model_api_key: SecretStr | None = Field(default=None, alias="MODEL_API_KEY")
     model_base_url: str = Field(default="https://api.meta.ai/v1", alias="VEXPROOF_MODEL_BASE_URL")
     model: str = Field(default="muse-spark-1.1", alias="VEXPROOF_MODEL")
-    model_api: Literal["responses", "chat"] = Field(default="responses", alias="VEXPROOF_MODEL_API")
+    model_api: Literal["responses", "chat", "anthropic"] = Field(
+        default="responses", alias="VEXPROOF_MODEL_API"
+    )
+    # Claude only: how hard the model thinks (None: the model's default), and whether a refused
+    # request is retried on the server's fallback model
+    model_effort: Literal["low", "medium", "high", "xhigh", "max"] | None = Field(
+        default=None, alias="VEXPROOF_MODEL_EFFORT"
+    )
+    model_fallbacks: bool = Field(default=True, alias="VEXPROOF_MODEL_FALLBACKS")
     model_mode: Literal["cache", "replay", "live"] = Field(
         default="cache", alias="VEXPROOF_MODEL_MODE"
     )

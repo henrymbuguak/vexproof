@@ -4,8 +4,10 @@
 provider layer"
 
 Implemented on 2026-11-19: the request and response types, the backward-compatible key, the
-`MetaTransport` adapter and recordings that keep stop reasons, cache tokens and tool calls.
-To follow: `AnthropicTransport`, and recordings that keep thinking blocks.
+`MetaTransport` adapter and recordings that keep stop reasons, cache tokens and tool calls; then
+the Claude adapter (`llm/claude.py`, named so it cannot shadow the `anthropic` package), with
+effort as part of a request's identity and the model that served each answer recorded.
+To follow: recordings that keep thinking blocks, which multi-turn Claude requests need.
 
 ## Context
 `ModelRequest` holds one system string and one user string, and the only transport speaks the

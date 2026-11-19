@@ -150,7 +150,9 @@ def fake_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[ModelConfi
 
     monkeypatch.setattr(cli, "build_stack", build)
     monkeypatch.setattr("vexproof.service.build_stack", build)
-    monkeypatch.setattr(cli, "list_models", lambda key, url: ["muse-spark-1.1", "muse-spark-1.2"])
+    monkeypatch.setattr(
+        cli, "list_models", lambda key, url, **_: ["muse-spark-1.1", "muse-spark-1.2"]
+    )
     return configs
 
 
@@ -257,7 +259,7 @@ def test_check_model_failures(
     assert missing_gold.exit_code == 2
     assert "cannot read gold file" in _flat(missing_gold.output)
 
-    def unlisted(key: str, url: str) -> list[str]:
+    def unlisted(key: str, url: str, **_: object) -> list[str]:
         raise ModelError("could not list models: 404")
 
     monkeypatch.setattr(cli, "list_models", unlisted)
@@ -283,7 +285,7 @@ def test_local_server_works_without_a_key(
     monkeypatch.setenv("VEXPROOF_MODEL_API", "chat")
     monkeypatch.setenv("VEXPROOF_MODEL_TIMEOUT_S", "600")
     monkeypatch.setenv("VEXPROOF_MODEL_WORKERS", "1")
-    monkeypatch.setattr(cli, "list_models", lambda key, url: ["llama3.1:latest"])
+    monkeypatch.setattr(cli, "list_models", lambda key, url, **_: ["llama3.1:latest"])
     checked = runner.invoke(cli.app, ["check-model"], terminal_width=200)
     assert checked.exit_code == 0, checked.output
     text = _flat(checked.output)

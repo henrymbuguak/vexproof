@@ -1,4 +1,8 @@
-"""Ask for a Pydantic object, get a validated Pydantic object, or a clear error."""
+"""Ask for a Pydantic object, get a validated Pydantic object, or a clear error.
+
+A reply that was refused or cut off at the output limit is a typed failure, never bad JSON to
+repair: repairing a truncated answer would ask the model to guess the rest.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,15 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from vexproof.llm.types import ModelOutputInvalidError, ModelRequest, Transport
+from vexproof.llm.types import (
+    Effort,
+    ModelOutputInvalidError,
+    ModelRefusedError,
+    ModelRequest,
+    ModelResponse,
+    ModelTruncatedError,
+    Transport,
+)
 
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
@@ -47,8 +59,10 @@ def _parse[M: BaseModel](text: str, schema: type[M]) -> M:
 
 
 class StructuredCaller:
-    def __init__(self, transport: Transport) -> None:
+    def __init__(self, transport: Transport, *, effort: Effort | None = None) -> None:
+        """`effort` goes on every request; None leaves it to the transport's default."""
         self._transport = transport
+        self._effort = effort
 
     @property
     def model(self) -> str:
@@ -72,8 +86,9 @@ class StructuredCaller:
             schema_name=schema.__name__,
             schema=strict_schema(schema),
             max_output_tokens=max_output_tokens,
+            effort=self._effort,
         )
-        reply = self._transport.complete(request)
+        reply = _finished(self._transport.complete(request), purpose, max_output_tokens)
         try:
             return _parse(reply.text, schema)
         except (ValueError, ValidationError) as first:
@@ -89,8 +104,9 @@ class StructuredCaller:
                 schema_name=request.schema_name,
                 schema=request.schema,
                 max_output_tokens=max_output_tokens,
+                effort=self._effort,
             )
-            second = self._transport.complete(repair)
+            second = _finished(self._transport.complete(repair), purpose, max_output_tokens)
             try:
                 return _parse(second.text, schema)
             except (ValueError, ValidationError) as exc:
@@ -98,6 +114,17 @@ class StructuredCaller:
                     f"{purpose}: reply did not match {schema.__name__}: {_brief(exc)}; "
                     f"the reply began {second.text.strip()[:160]!r}"
                 ) from exc
+
+
+def _finished(reply: ModelResponse, purpose: str, limit: int) -> ModelResponse:
+    """The reply, if the model finished it; a typed error if it declined or ran out of room."""
+    if reply.stop_reason == "refusal":
+        raise ModelRefusedError(f"{purpose}: {reply.model} declined the request")
+    if reply.stop_reason == "max_tokens":
+        raise ModelTruncatedError(
+            f"{purpose}: the reply reached the {limit:,}-token output limit before it was complete"
+        )
+    return reply
 
 
 def _brief(exc: Exception) -> str:

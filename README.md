@@ -360,6 +360,14 @@ commented-out block for the hosted Meta Model API. **I have not run vexproof aga
 Model API:** I could not complete the account's billing setup during the event, so treat that
 path as untested.
 
+**Claude (on `develop`).** Set `VEXPROOF_MODEL_API=anthropic` and a Claude model such as
+`VEXPROOF_MODEL=claude-opus-5-5` (the commented block in `.env.example`). The Anthropic SDK
+finds your credentials itself, from `ANTHROPIC_API_KEY` or an `ant auth login` profile, so
+nothing secret goes in `.env`. Answers use Claude's structured outputs; a refused or cut-off
+answer leaves the alert open with the reason, never a guess; and a refused request is retried on
+the server's fallback model unless `VEXPROOF_MODEL_FALLBACKS=false`. Run `vexproof check-model`
+first. Muse Spark stays the default until the benchmark compares the two.
+
 ### 6. Scan a project
 
 From the web app: run `uv run vexproof serve`, paste a public GitHub repository URL and a

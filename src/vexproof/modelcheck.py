@@ -19,8 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from vexproof.domain import Finding
-from vexproof.llm.factory import ModelStack
-from vexproof.llm.meta import Api
+from vexproof.llm.factory import Api, ModelStack
 from vexproof.llm.types import BudgetExceededError, ModelError
 from vexproof.symbols.gold import GoldCase, Judgement, judge
 from vexproof.symbols.select import pick_symbols
@@ -28,7 +27,9 @@ from vexproof.symbols.verify import Rejected, Verified, verify
 
 MIN_ACCURACY = 0.75
 PING_PROMPT = "ping.v1"
-PING_MAX_OUTPUT_TOKENS = 1024  # room for a reasoning model to think before a one-line answer
+# Thinking counts toward the output limit, and Claude always thinks: room for that before a
+# one-line answer. Only tokens actually generated are billed.
+PING_MAX_OUTPUT_TOKENS = 16_000
 
 CaseResult = Judgement | Literal["missing", "error"]
 
@@ -47,11 +48,15 @@ class PingResult:
 
 
 def ping(stack_for: Callable[[Api], ModelStack], prefer: Api = "responses") -> PingResult:
-    """Try structured output on the configured API, then the other; return the first that works."""
+    """Try structured output on the configured API, then the other OpenAI-compatible one; return
+    the first that works. Claude has one API, so there is nothing to fall back to."""
     errors: dict[str, str] = {}
-    apis: tuple[Api, ...] = (
-        ("responses", "chat") if prefer == "responses" else ("chat", "responses")
-    )
+    order: dict[Api, tuple[Api, ...]] = {
+        "responses": ("responses", "chat"),
+        "chat": ("chat", "responses"),
+        "anthropic": ("anthropic",),
+    }
+    apis = order[prefer]
     for api in apis:
         try:
             reply = stack_for(api).caller.ask(

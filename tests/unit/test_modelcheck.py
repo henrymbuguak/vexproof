@@ -7,8 +7,7 @@ import pytest
 from tests.llm_fakes import Reply, pick, scripted_stack
 from tests.symbol_fixtures import ICNS, ICO, QUOTE, ico_finding
 from vexproof.domain import Level
-from vexproof.llm.factory import ModelStack
-from vexproof.llm.meta import Api
+from vexproof.llm.factory import Api, ModelStack
 from vexproof.llm.types import BudgetExceededError, ModelError
 from vexproof.modelcheck import GoldReport, GoldRow, ping, run_gold
 from vexproof.symbols.gold import GoldCase
@@ -41,6 +40,18 @@ def test_ping_falls_back_to_chat_then_gives_up(tmp_path: Path) -> None:
     wrong = ping(lambda api: scripted_stack([{"ok": False, "word": "no"}], tmp_path)[0])
     assert wrong.api is None
     assert set(wrong.errors) == {"responses", "chat"}
+
+
+def test_ping_on_claude_tries_only_claude(tmp_path: Path) -> None:
+    built: list[Api] = []
+
+    def stack_for(api: Api) -> ModelStack:
+        built.append(api)
+        return scripted_stack([ModelError("credentials missing")], tmp_path)[0]
+
+    result = ping(stack_for, prefer="anthropic")
+    assert (result.api, built) == (None, ["anthropic"])  # no OpenAI-compatible API to fall back to
+    assert "credentials missing" in result.errors["anthropic"]
 
 
 def test_run_gold_scores_each_case(tmp_path: Path) -> None:
