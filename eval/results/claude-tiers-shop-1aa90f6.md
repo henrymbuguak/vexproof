@@ -67,7 +67,13 @@ The clears are the same 14 in every run. Since ADR 0020 a pick cannot change a c
   need to be measured on hop review specifically.
 - **Safety:** no model affected a clear, and no run contradicted one. The model errors this run
   surfaced are all in the safe direction (a false "reachable").
-- **Cost:** the path review makes most of the calls (Opus: 92 of 144), and it re-sends its whole
-  history at every step, so the Phase 2 move to native tools with append-only, cached history is
-  the main saving to expect. Tokens are not yet split by purpose; the cost-accounting task adds it.
+- **Cost:** the path review is about three quarters of it, and it re-sends its whole history at
+  every step, so the Phase 2 move to native tools with append-only, cached history is the main
+  saving to expect. Split by purpose from the recordings (replayed with per-model list prices,
+  so no tokens were spent; totals match the live runs exactly):
+
+  | Model | Pick: calls, tokens in / out, cost | Path review: calls, tokens in / out, cost |
+  | --- | --- | --- |
+  | Opus 5.5 | 52, 116,618 / 10,198, $0.670 | 92, 243,557 / 46,008, $1.894 (74%) |
+  | Haiku 5.5 | 52, 116,618 / 21,183, $0.022 | 89, 225,279 / 95,775, $0.070 (76%) |
 - **Not measured yet:** Sonnet 5.5 on the full scan; prompt caching; runs on justdjango.

@@ -13,6 +13,7 @@ from tests.llm_fakes import ScriptedTransport
 from vexproof.llm.budget import BudgetTransport, Usage, UsageReport
 from vexproof.llm.factory import ModelConfig, build_stack, list_models
 from vexproof.llm.meta import Api, MetaTransport
+from vexproof.llm.pricing import PRICES, price_lookup
 from vexproof.llm.recording import RecordingTransport
 from vexproof.llm.structured import StructuredCaller, strict_schema
 from vexproof.llm.types import (
@@ -235,20 +236,98 @@ def test_budget_counts_tokens_and_stops_before_overspending(tmp_path: Path) -> N
 
 def test_replayed_answers_cost_nothing(tmp_path: Path) -> None:
     recorder = RecordingTransport(ScriptedTransport([{"name": "x"}]), tmp_path, "cache")
-    budget = BudgetTransport(recorder, max_tokens=10**6)
+    prices, _ = price_lookup(1e6, 0)  # $1 per input token, to make the arithmetic visible
+    budget = BudgetTransport(recorder, max_tokens=10**6, prices=prices)
     budget.complete(_request())
     budget.complete(_request())
     total = budget.report.total
     assert (total.calls, total.replayed, total.input_tokens) == (2, 1, 100)
     assert total.recorded_input_tokens == 100  # what the replayed answer cost when recorded
-    assert budget.report.cost_usd(1e6, 0) == 100
-    assert budget.report.cost_usd(1e6, 0, fresh=True) == 200
+    assert budget.report.cost_usd() == 100
+    assert budget.report.cost_usd(fresh=True) == 200
 
 
-def test_cost_needs_both_prices() -> None:
+def test_cost_is_unknown_without_a_price() -> None:
     report = UsageReport({"x": Usage(calls=1, input_tokens=1_000_000, output_tokens=500_000)})
-    assert report.cost_usd(None, 2.0) is None
-    assert report.cost_usd(1.0, 2.0) == pytest.approx(2.0)
+    assert report.cost_usd() is None  # no prices given
+    unpriced = BudgetTransport(ScriptedTransport(lambda _: {"name": "x"}), 10**6, PRICES.get)
+    unpriced.complete(_request())  # "fake-model" has no list price
+    assert unpriced.report.cost_usd() is None
+
+
+def _claude_reply(
+    model: str,
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
+) -> ModelResponse:
+    return ModelResponse(
+        text='{"name": "x"}',
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
+    )
+
+
+def test_each_call_is_priced_at_its_models_list_rates() -> None:
+    replies = [
+        _claude_reply("claude-opus-5-5", input_tokens=1_000, output_tokens=500),
+        # a cache-heavy call: reads at 0.05x input on Opus 5.5, writes at 1.25x
+        _claude_reply(
+            "claude-opus-5-5",
+            input_tokens=200,
+            cache_read_tokens=10_000,
+            cache_write_tokens=1_000,
+            output_tokens=100,
+        ),
+        # a refusal fallback answered from another model: priced at that model's rates
+        _claude_reply("claude-sonnet-5-5", input_tokens=1_000, output_tokens=500),
+    ]
+
+    class Replies:
+        model = "claude-opus-5-5"
+
+        def complete(self, request: ModelRequest) -> ModelResponse:
+            return replies.pop(0)
+
+    budget = BudgetTransport(Replies(), 10**6, PRICES.get)
+    for _ in range(3):
+        budget.complete(_request())
+    opus = (1_000 * 4 + 500 * 20) / 1e6 + (200 * 4 + 10_000 * 0.2 + 1_000 * 5 + 100 * 20) / 1e6
+    sonnet = (1_000 * 2 + 500 * 10) / 1e6
+    assert budget.report.cost_usd() == pytest.approx(opus + sonnet)
+    total = budget.report.total
+    assert (total.cache_read_tokens, total.cache_write_tokens) == (10_000, 1_000)
+    assert total.tokens == 1_000 + 500 + 200 + 10_000 + 1_000 + 100 + 1_000 + 500  # the budget
+
+
+def test_haiku_is_priced_by_prompt_length_one_request_at_a_time() -> None:
+    haiku = PRICES["claude-haiku-5-5"]
+    short = haiku.cost(
+        input_tokens=60_000, cache_read_tokens=40_000, cache_write_tokens=0, output_tokens=1_000
+    )
+    assert short == pytest.approx((60_000 * 0.10 + 40_000 * 0.01 + 1_000 * 0.50) / 1e6)
+    long = haiku.cost(  # one token over 100,000, counting cache reads: every token at long rates
+        input_tokens=60_001, cache_read_tokens=40_000, cache_write_tokens=0, output_tokens=1_000
+    )
+    assert long == pytest.approx((60_001 * 0.50 + 40_000 * 0.05 + 1_000 * 2.50) / 1e6)
+
+
+def test_flat_prices_override_the_list_for_every_model() -> None:
+    prices, source = price_lookup(1.25, 4.25)
+    assert "VEXPROOF_PRICE" in source
+    flat = prices("claude-opus-5-5")
+    assert flat is not None
+    assert flat.cost(
+        input_tokens=1_000_000, cache_read_tokens=0, cache_write_tokens=0, output_tokens=0
+    ) == pytest.approx(1.25)
+    listed, source = price_lookup(None, 4.25)  # both are needed
+    assert listed("claude-opus-5-5") == PRICES["claude-opus-5-5"]
+    assert "list prices checked" in source
 
 
 # -- structured output -------------------------------------------------------------------------
