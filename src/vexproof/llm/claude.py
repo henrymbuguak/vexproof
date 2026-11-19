@@ -63,10 +63,12 @@ class ClaudeTransport:
         return self._model
 
     def complete(self, request: ModelRequest) -> ModelResponse:
-        if any(m.role == "assistant" for m in request.messages):
-            # Claude's earlier turns carry thinking blocks that must be sent back unchanged, and
-            # requests do not hold them yet; a conversation without them would be an edited one.
-            raise ModelError("conversations with earlier assistant turns are not supported yet")
+        if any(m.role == "assistant" and not m.blocks for m in request.messages):
+            # An earlier Claude turn carries thinking blocks that must go back unchanged; a turn
+            # rebuilt from its text alone would be an edited history. Use Message.reply().
+            raise ModelError(
+                "an earlier assistant turn has no content blocks; build it with Message.reply()"
+            )
         started = time.perf_counter()
         try:
             message = self._create(request)
@@ -126,14 +128,23 @@ class ClaudeTransport:
         return plain
 
 
+_THINKING = frozenset({"thinking", "redacted_thinking"})
+
+
 def _messages(request: ModelRequest) -> list[dict[str, Any]]:
-    """Each message as one text block; a cache point marks the end of a cacheable prefix."""
+    """Each message as its recorded blocks, sent back unchanged, or else as one text block.
+
+    A cache point marks the end of a cacheable prefix. It goes on the message's last block that is
+    not thinking; the blocks are copied first, so a recording is never altered.
+    """
     out: list[dict[str, Any]] = []
     for i, message in enumerate(request.messages):
-        block: dict[str, Any] = {"type": "text", "text": message.content}
+        blocks = [dict(b) for b in message.blocks] or [{"type": "text", "text": message.content}]
         if i in request.cache_points:
-            block["cache_control"] = {"type": "ephemeral"}
-        out.append({"role": message.role, "content": [block]})
+            last = next((b for b in reversed(blocks) if b.get("type") not in _THINKING), None)
+            if last is not None:
+                last["cache_control"] = {"type": "ephemeral"}
+        out.append({"role": message.role, "content": blocks})
     return out
 
 
@@ -152,6 +163,8 @@ def _to_response(message: ClaudeMessage | BetaMessage, latency_ms: int) -> Model
             ToolCall(b.id, b.name, dict(b.input)) for b in blocks if b.type == "tool_use"
         ),
         latency_ms=latency_ms,
+        # as plain dicts, the form the API takes back; fields the API left empty are dropped
+        blocks=tuple(b.model_dump(mode="json", exclude_none=True) for b in blocks),
     )
 
 
