@@ -184,17 +184,23 @@ def _render_verdicts(findings: tuple[Finding, ...]) -> None:
     )
 
 
-def _render_usage(stack: ModelStack, settings: Settings) -> None:
+def _render_usage(stack: ModelStack) -> None:
     report: UsageReport = stack.budget.report
     total = report.total
     if not total.calls:
         return
-    cost = report.cost_usd(settings.price_input_per_m, settings.price_output_per_m)
-    fresh = report.cost_usd(settings.price_input_per_m, settings.price_output_per_m, fresh=True)
+    cost = report.cost_usd()
+    fresh = report.cost_usd(fresh=True)
+    cached = total.cache_read_tokens + total.cache_write_tokens
     console.print(
         f"Model {escape(stack.label)}: {total.calls} call(s), "
         f"{total.replayed} replayed from recordings, "
         f"{total.input_tokens:,} input + {total.output_tokens:,} output tokens"
+        + (
+            f" + {total.cache_read_tokens:,} read from cache, {total.cache_write_tokens:,} written"
+            if cached
+            else ""
+        )
         + (f", about ${cost:.4f}" if cost is not None else "")
         + (
             f" (without recordings: about ${fresh:.4f})"
@@ -202,6 +208,13 @@ def _render_usage(stack: ModelStack, settings: Settings) -> None:
             else ""
         )
     )
+    if len(report.by_purpose) > 1:
+        for purpose, use in sorted(report.by_purpose.items()):
+            spent = use.cost_usd + use.recorded_cost_usd
+            console.print(
+                f"  {escape(purpose)}: {use.calls} call(s)"
+                + (f", about ${spent:.4f} without recordings" if report.priced else "")
+            )
 
 
 @app.command("scan")
@@ -267,7 +280,7 @@ def scan_command(
     result = outcome.result
     _render(result, service_profile)
     if outcome.stack is not None:
-        _render_usage(outcome.stack, settings)
+        _render_usage(outcome.stack)
     if json_out:
         document = payload(result, outcome.usage)
         json_out.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
@@ -537,7 +550,7 @@ def check_model_command(
         console.print(f"[red]error:[/red] {escape(str(exc))}")
         raise typer.Exit(code=2) from exc
     _render_gold(report)
-    _render_usage(stack, settings)
+    _render_usage(stack)
     if not report.go:
         raise typer.Exit(code=1)
 

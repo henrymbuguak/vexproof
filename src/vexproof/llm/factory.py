@@ -11,6 +11,7 @@ import openai
 from vexproof.llm.budget import BudgetTransport
 from vexproof.llm.claude import ClaudeTransport, list_claude_models
 from vexproof.llm.meta import MetaTransport
+from vexproof.llm.pricing import price_lookup
 from vexproof.llm.recording import Mode, RecordingTransport
 from vexproof.llm.structured import StructuredCaller
 from vexproof.llm.types import Effort, ModelError, Transport, is_local_endpoint
@@ -33,6 +34,9 @@ class ModelConfig:
     workers: int = 4
     effort: Effort | None = None  # sent on every request when set (Claude's output_config.effort)
     fallbacks: bool = True  # Claude: retry a refused request on the server's fallback model
+    # flat USD per million tokens, for every model; both unset: the list prices in pricing.py
+    price_input_per_m: float | None = None
+    price_output_per_m: float | None = None
 
     @property
     def local(self) -> bool:
@@ -50,6 +54,7 @@ class ModelStack:
     caller: StructuredCaller
     budget: BudgetTransport
     workers: int = 4
+    prices: str = ""  # where the prices in usage reports come from
 
     @property
     def label(self) -> str:
@@ -74,9 +79,10 @@ def build_stack(config: ModelConfig, live: Transport | None = None) -> ModelStac
                 timeout_s=config.timeout_s,
             )
     recorder = RecordingTransport(live, config.recordings_dir, config.mode, model=config.model)
-    budget = BudgetTransport(recorder, config.max_tokens)
+    price_of, prices = price_lookup(config.price_input_per_m, config.price_output_per_m)
+    budget = BudgetTransport(recorder, config.max_tokens, price_of)
     caller = StructuredCaller(budget, effort=config.effort)
-    return ModelStack(caller=caller, budget=budget, workers=config.workers)
+    return ModelStack(caller=caller, budget=budget, workers=config.workers, prices=prices)
 
 
 def list_models(

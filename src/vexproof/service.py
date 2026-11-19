@@ -65,6 +65,8 @@ def model_config(
         workers=settings.model_workers,
         effort=settings.model_effort,
         fallbacks=settings.model_fallbacks,
+        price_input_per_m=settings.price_input_per_m,
+        price_output_per_m=settings.price_output_per_m,
     )
 
 
@@ -77,24 +79,43 @@ def _through_alias(url: str, alias: str | None) -> str:
     return urlunsplit(parts._replace(netloc=netloc))
 
 
-def usage(stack: ModelStack | None, settings: Settings) -> dict[str, object] | None:
-    """Model use for the whole scan: what this run cost, and what a run without recordings costs."""
+def usage(stack: ModelStack | None) -> dict[str, object] | None:
+    """Model use for the whole scan: what this run cost, and what a run without recordings costs.
+
+    The keys from before per-model prices are kept as they were (`by_purpose` still counts
+    calls); `purposes` adds tokens and cost for each purpose.
+    """
     if stack is None or not stack.budget.report.total.calls:
         return None
     report = stack.budget.report
     total = report.total
-    prices = (settings.price_input_per_m, settings.price_output_per_m)
+    priced = report.priced
     return {
         "label": stack.label,
         "calls": total.calls,
         "replayed": total.replayed,
         "input_tokens": total.input_tokens,
         "output_tokens": total.output_tokens,
+        "cache_read_tokens": total.cache_read_tokens,
+        "cache_write_tokens": total.cache_write_tokens,
         "recorded_input_tokens": total.recorded_input_tokens,
         "recorded_output_tokens": total.recorded_output_tokens,
-        "cost_usd": report.cost_usd(*prices),
-        "fresh_cost_usd": report.cost_usd(*prices, fresh=True),
+        "cost_usd": report.cost_usd(),
+        "fresh_cost_usd": report.cost_usd(fresh=True),
+        "prices": stack.prices if priced else None,
         "by_purpose": {k: v.calls for k, v in sorted(report.by_purpose.items())},
+        "purposes": {
+            purpose: {
+                "calls": u.calls,
+                "replayed": u.replayed,
+                "input_tokens": u.input_tokens + u.recorded_input_tokens,
+                "output_tokens": u.output_tokens + u.recorded_output_tokens,
+                "cache_read_tokens": u.cache_read_tokens + u.recorded_cache_read_tokens,
+                "cache_write_tokens": u.cache_write_tokens + u.recorded_cache_write_tokens,
+                "fresh_cost_usd": u.cost_usd + u.recorded_cost_usd if priced else None,
+            }
+            for purpose, u in sorted(report.by_purpose.items())
+        },
     }
 
 
@@ -151,7 +172,7 @@ def run_scan(
             )
     finally:
         cache.close()
-    return ScanOutcome(result=result, stack=stack, usage=usage(stack, settings))
+    return ScanOutcome(result=result, stack=stack, usage=usage(stack))
 
 
 def payload(result: ScanResult, usage: dict[str, object] | None = None) -> dict[str, Any]:

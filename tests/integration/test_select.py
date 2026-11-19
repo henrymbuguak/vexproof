@@ -14,7 +14,6 @@ from tests.helpers import EPSS, FIXTURES, KEV, OSV
 from tests.llm_fakes import Reply, ScriptedTransport, pick, scripted_stack
 from tests.symbol_fixtures import ICO, QUOTE, ico_finding
 from vexproof import cli
-from vexproof.config import Settings
 from vexproof.domain import Finding, Level, Package
 from vexproof.intel.http import JsonHttp
 from vexproof.llm import factory
@@ -310,6 +309,17 @@ def test_local_server_works_without_a_key(
     assert payload["model"]["calls"] == 1  # recorded so evaluation can report cost per alert
     assert payload["model"]["by_purpose"] == {"symbol_pick": 1}
     assert payload["model"]["recorded_input_tokens"] == 0  # nothing was replayed
+    # a local model has no list price, so costs stay unknown rather than zero
+    assert (payload["model"]["cost_usd"], payload["model"]["prices"]) == (None, None)
+    assert payload["model"]["purposes"]["symbol_pick"] == {
+        "calls": 1,
+        "replayed": 0,
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "fresh_cost_usd": None,
+    }
     assert payload["closure"] == {"reached": [], "unreached": [], "blockers": []}
     assert set(payload["timings_s"]) >= {"ingest", "intel", "select", "prove"}
 
@@ -348,5 +358,5 @@ def test_untrusted_text_is_printed_literally(tmp_path: Path) -> None:
             live=ScriptedTransport([pick([ICO], QUOTE)], model="muse-spark-open:cloud"),
         )
         select_symbols([_variant("GHSA-pick")], cloud)
-        cli._render_usage(cloud, Settings())
+        cli._render_usage(cloud)
     assert "Model muse-spark-open:cloud: 1 call(s)" in captured.get()
