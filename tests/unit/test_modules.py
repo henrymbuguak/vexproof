@@ -163,9 +163,46 @@ def test_configuration_files_name_modules_to_load(tmp_path: Path) -> None:
 
 
 def test_a_library_that_discovers_modules_has_all_of_them_reached(tmp_path: Path) -> None:
-    # Faker lists its providers' folders in one module and imports each name in another: the
-    # names come from the file system, so every module of the library can load.
-    faker = Package(name="faker", version="0.7.17")
+    # Like Faker, it lists its providers' folders in one module and imports each name in another:
+    # the names come from the file system, so every module of the library can load.
+    lib = Package(name="fakelib", version="1.0")
+    trees = {
+        PILLOW: make_tree(tmp_path / "sources", PILLOW, LIBRARY),
+        lib: make_tree(
+            tmp_path / "sources",
+            lib,
+            {
+                "fakelib/__init__.py": "from fakelib import factory\n",
+                "fakelib/loading.py": (
+                    "import os\n\ndef names(path):\n    return os.listdir(path)\n"
+                ),
+                "fakelib/factory.py": (
+                    "import importlib\nfrom fakelib import loading\n\ndef create(path):\n"
+                    "    return importlib.import_module(path)\n"
+                ),
+                "fakelib/providers/__init__.py": "",
+                "fakelib/providers/address.py": "import PIL.ImageMath\n",
+            },
+        ),
+    }
+    project = {**PROJECT, "shop/settings.py": "import fakelib\n"}
+    reach = module_reachability(write_project(tmp_path / "p", project), trees, {})
+    assert reach.blockers[0].startswith(
+        "reached code imports modules by computed name that no framework rule covers: "
+        "fakelib.factory:5"
+    )
+    # and every module of the library is in both closures, with what it imports
+    assert (
+        reach.reached["fakelib.providers.address"]
+        == "fakelib finds its own modules by listing them"
+    )
+    assert reach.is_reached("PIL.ImageMath")  # imported by a provider nothing names
+
+
+def test_faker_and_plotly_are_covered_by_reviewed_rules(tmp_path: Path) -> None:
+    faker = Package(name="faker", version="8.0.0")
+    plotly = Package(name="plotly", version="4.14.3")
+    numpy = Package(name="numpy", version="1.20.0")
     trees = {
         PILLOW: make_tree(tmp_path / "sources", PILLOW, LIBRARY),
         faker: make_tree(
@@ -173,25 +210,65 @@ def test_a_library_that_discovers_modules_has_all_of_them_reached(tmp_path: Path
             faker,
             {
                 "faker/__init__.py": "from faker import factory\n",
-                "faker/loading.py": "import os\n\ndef names(path):\n    return os.listdir(path)\n",
+                "faker/utils/__init__.py": "",
+                "faker/utils/loading.py": (
+                    "import pkgutil\nfrom importlib import import_module\n\n"
+                    "def find(p):\n    return [import_module(n) for n in pkgutil.iter_modules(p)]\n"
+                ),
                 "faker/factory.py": (
-                    "import importlib\nfrom faker import loading\n\ndef create(path):\n"
-                    "    return importlib.import_module(path)\n"
+                    "from importlib import import_module\nfrom faker.utils import loading\n\n"
+                    "def create(path):\n    return import_module(path)\n"
                 ),
                 "faker/providers/__init__.py": "",
-                "faker/providers/address.py": "import PIL.ImageMath\n",
+                "faker/providers/address/__init__.py": "",
+                "faker/providers/address/en_US/__init__.py": "import PIL.ImageMath\n",
             },
         ),
+        plotly: make_tree(
+            tmp_path / "sources",
+            plotly,
+            {
+                "plotly/__init__.py": "from _plotly_utils import optional_imports\n",
+                "plotly/validators/__init__.py": "",
+                "plotly/validators/bar.py": "",
+                "_plotly_utils/__init__.py": "",
+                "_plotly_utils/optional_imports.py": (
+                    "from importlib import import_module\n\n"
+                    "def get_module(name):\n    return import_module(name)\n"
+                ),
+            },
+        ),
+        numpy: make_tree(tmp_path / "sources", numpy, {"numpy/__init__.py": ""}),
     }
-    project = {**PROJECT, "shop/settings.py": "import faker\n"}
+    project = {
+        **PROJECT,
+        "shop/settings.py": "import faker\nimport plotly\nimport shop.fakes\n",
+        "shop/fakes/__init__.py": "from faker.providers import BaseProvider\n",
+        "shop/fakes/en_GB/__init__.py": "",
+    }
     reach = module_reachability(write_project(tmp_path / "p", project), trees, {})
-    assert reach.blockers[0].startswith(
-        "reached code imports modules by computed name that no framework rule covers: "
-        "faker.factory:5"
-    )
-    # and every module of the library is in both closures, with what it imports
-    assert reach.reached["faker.providers.address"] == "faker finds its own modules by listing them"
-    assert reach.is_reached("PIL.ImageMath")  # imported by a provider nothing names
+    assert reach.blockers == []
+    assert reach.is_reached("PIL.ImageMath")  # through a provider Faker finds by listing
+    assert reach.is_reached("plotly.validators.bar")  # plotly's own modules, by computed name
+    assert reach.is_reached("numpy")  # a one-word name plotly passes to get_module
+
+
+def test_faker_may_load_the_locales_of_a_custom_provider_package(tmp_path: Path) -> None:
+    from vexproof.static.frameworks import faker_rules
+
+    modules = {
+        "faker": tmp_path / "faker" / "__init__.py",
+        "mylib": tmp_path / "mylib" / "__init__.py",
+        "mylib.en_GB": tmp_path / "mylib" / "en_GB" / "__init__.py",
+        "other": tmp_path / "other" / "__init__.py",
+        "other.sub": tmp_path / "other" / "sub.py",
+    }
+    for name, path in modules.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("from faker.providers import BaseProvider\n" if name == "mylib" else "")
+    hits = {h.module for h in faker_rules(modules, {"faker": "x", "mylib": "x", "other": "x"})}
+    assert "mylib.en_GB" in hits
+    assert "other.sub" not in hits
 
 
 def test_reviewed_frameworks_are_not_treated_as_discovering(tmp_path: Path) -> None:
