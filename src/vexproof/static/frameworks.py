@@ -31,6 +31,13 @@ django-debug-toolbar (1.x), module by module: panels, middleware, the show-toolb
 extra signals and stack-trace filters are all imported from dotted strings in its settings or
 the project's, which the string rule covers.
 
+django-compressor (2.4), module by module: every computed import loads a name from a dotted
+string, in its own `conf.py` defaults (`compressor.cache.simple_cachekey`), in a filter's literal
+`callback` (`"rcssmin.cssmin"`), in a literal parser tuple (`html.parser`, `"lxml.html"`) or in the
+project's `COMPRESS_*` settings, which the string rule covers. The `compress` command also imports
+`loader.__module__`, a module already loaded. Its `os.walk` calls list template and static files,
+which it reads, never imports.
+
 `six` and its vendored copies (`urllib3.packages.six`, `stripe.six`, ...) import only names from
 their own table of moved standard-library modules. `requests.packages` imports a literal tuple
 of packages (`urllib3`, `idna`, `chardet`) that requests already imports directly.
@@ -54,6 +61,13 @@ COVERED_DYNAMIC_MODULES = frozenset(
         "allauth.socialaccount.providers",
         "allauth.urls",
         "allauth.utils",
+        "compressor.base",
+        "compressor.cache",
+        "compressor.filters.base",
+        "compressor.management.commands.compress",
+        "compressor.management.commands.mtime_cache",
+        "compressor.parser",
+        "compressor.utils",
         "debug_toolbar.apps",
         "debug_toolbar.middleware",
         "debug_toolbar.panels.signals",

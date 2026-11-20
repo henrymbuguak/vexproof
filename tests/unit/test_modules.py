@@ -123,6 +123,10 @@ def test_allauth_six_and_debug_toolbar_computed_imports_are_covered() -> None:
 
     assert covered_module("allauth.socialaccount.providers")
     assert covered_module("debug_toolbar.toolbar")
+    # django-compressor 2.4, reviewed site by site; its other modules are not covered
+    assert covered_module("compressor.base")
+    assert covered_module("compressor.management.commands.compress")
+    assert not covered_module("compressor.templatetags.compress")
     assert covered_module("urllib3.packages.six")
     assert covered_module("six")
     assert not covered_module("allauth.account.views")  # only reviewed modules are covered

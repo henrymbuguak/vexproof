@@ -590,6 +590,8 @@ changes, and choosing other projects does not change it.
 - [ ] Reviewed rules for the libraries that block the projects closest to clearing:
   django-compressor (healthchecks), plotly and Faker (babybuddy), django-extensions (djangogirls),
   gunicorn (netbox); each checked by an import sweep
+  - [x] django-compressor 2.4: 7 sites, all named by dotted strings; healthchecks gains 4
+    clears, sound against its sweep (0 of 594 loaded modules missing, 0 of 4 contradicted)
 - [ ] Repeat the feasibility pass and set the false-clear target from the groups available
 
 Acceptance: every module loaded at run time on the observed projects is in the closure; no clear
