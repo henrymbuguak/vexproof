@@ -10,7 +10,7 @@ from typing import Any
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 
-_REQUIREMENTS_GLOBS = ("requirements.txt", "requirements/*.txt", "requirements-*.txt")
+from vexproof.ingest.requirements import read_requirements
 
 
 def _from_requirement_strings(lines: list[str]) -> set[str]:
@@ -41,14 +41,12 @@ def _from_pyproject(data: dict[str, Any]) -> set[str]:
 
 
 def direct_dependency_names(repo: Path) -> frozenset[str]:
-    """Canonical names declared in pyproject.toml and top-level requirements files."""
+    """Canonical names declared in pyproject.toml and requirements files, with their includes."""
     names: set[str] = set()
     pyproject = repo / "pyproject.toml"
     if pyproject.is_file():
         # A broken manifest only means fewer packages are marked direct.
         with contextlib.suppress(tomllib.TOMLDecodeError):
             names |= _from_pyproject(tomllib.loads(pyproject.read_text(encoding="utf-8")))
-    for pattern in _REQUIREMENTS_GLOBS:
-        for req_file in sorted(repo.glob(pattern)):
-            names |= _from_requirement_strings(req_file.read_text(encoding="utf-8").splitlines())
+    names |= read_requirements(repo).names
     return frozenset(names)

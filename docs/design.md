@@ -584,7 +584,10 @@ changes, and choosing other projects does not change it.
   sweeps, and rejected (ADR 0022): unsound on Faker, and once made sound they cleared nothing
 - [x] Find why pytest and IPython are reached from production code: a one-word string rule in
   library code (pytest); IPython is real (dispatch's CLI imports it)
-- [ ] Read nested requirements files (`-r` includes, `requirements/` folders)
+- [x] Read nested requirements files (`-r` includes, `requirements/` folders): exact pins only,
+  ranges reported. Of the seven projects that lost every dependency, readthedocs (87 pins),
+  kitsune (215), ralph (73) and bakerydemo (8, with Django and Wagtail unpinned) now have
+  packages; flasky, microblog and the FastAPI template have no requirements at their commits
 - [x] Prove the closure sound on run-time observations of several projects (the import sweep):
   shop, justdjango, babybuddy and healthchecks, after fixing what the babybuddy sweep found
 - [ ] Reviewed rules for the libraries that block the projects closest to clearing:

@@ -24,6 +24,7 @@ from vexproof.evidence.paths import registry_edges
 from vexproof.evidence.trace import PROMPT_VERSION as TRACE_PROMPT
 from vexproof.evidence.trace import Tracer
 from vexproof.ingest.direct import direct_dependency_names
+from vexproof.ingest.requirements import RequirementsRead, read_requirements
 from vexproof.ingest.sbom import load_sbom, packages_from_sbom
 from vexproof.ingest.syft import generate_sbom
 from vexproof.intel.disputes import find_disputes
@@ -102,7 +103,38 @@ def collect_packages(
     sbom_generator: Callable[[Path], dict[str, Any]] = generate_sbom,
 ) -> tuple[Package, ...]:
     document = load_sbom(sbom_path) if sbom_path else sbom_generator(repo)
-    return packages_from_sbom(document, direct_dependency_names(repo))
+    direct = direct_dependency_names(repo)
+    packages = packages_from_sbom(document, direct)
+    if sbom_path:
+        return packages  # a given SBOM is the whole inventory
+    return merge_requirement_pins(packages, read_requirements(repo), direct)
+
+
+def merge_requirement_pins(
+    packages: tuple[Package, ...], read: RequirementsRead, direct: frozenset[str]
+) -> tuple[Package, ...]:
+    """Add exact pins from requirements files that Syft missed (nested files, `-r` includes)."""
+    found = {(p.name, p.version): p for p in packages}
+    added = 0
+    for (name, version), _file in sorted(read.pins.items()):
+        if (name, version) not in found:
+            found[(name, version)] = Package(
+                name=name, version=version, direct=name in direct, purl=f"pkg:pypi/{name}@{version}"
+            )
+            added += 1
+    if added:
+        log.info("requirements_pins_added", added=added, files=read.files[:8])
+    if read.unpinned:
+        names = {p.name for p in found.values()}
+        missing = sorted(n for n in read.unpinned if n not in names)
+        if missing:
+            log.warning(
+                "requirements_unpinned",
+                count=len(missing),
+                names=missing[:10],
+                note="ranges are not installed versions; pass an SBOM or lock file to include them",
+            )
+    return tuple(sorted(found.values(), key=lambda p: (p.name, p.version)))
 
 
 def gather_intel(

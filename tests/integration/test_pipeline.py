@@ -38,8 +38,10 @@ def test_scan_end_to_end_with_mocked_services(
 
 
 def test_scan_uses_sbom_generator_when_no_sbom(
-    http: JsonHttp, mocked_services: respx.MockRouter
+    http: JsonHttp, mocked_services: respx.MockRouter, tmp_path: Path
 ) -> None:
+    # a repository with no requirements files, so the generator's packages are the inventory
+    # (pins from requirements files are merged in: tests/unit/test_requirements.py)
     seen: list[Path] = []
 
     def generator(path: Path) -> dict[str, object]:
@@ -49,8 +51,8 @@ def test_scan_uses_sbom_generator_when_no_sbom(
         )
         return document
 
-    result = scan(REPO, http=http, config=CONFIG, sbom_generator=generator)
-    assert seen == [REPO]
+    result = scan(tmp_path, http=http, config=CONFIG, sbom_generator=generator)
+    assert seen == [tmp_path]
     assert len(result.findings) == 3
 
 
