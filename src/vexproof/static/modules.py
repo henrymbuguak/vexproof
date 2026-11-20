@@ -33,7 +33,12 @@ from pathlib import Path, PurePosixPath
 
 from vexproof.domain import Package
 from vexproof.sources.tree import SourceTree, module_name
-from vexproof.static.frameworks import COVERED_DYNAMIC_IMPORTS, RULES, covered_module
+from vexproof.static.frameworks import (
+    COVERED_DYNAMIC_IMPORTS,
+    RULES,
+    covered_given,
+    covered_module,
+)
 from vexproof.static.imports import ComputedImport, ModuleImports, scan_source
 from vexproof.static.project import (
     MAX_FILE_BYTES,
@@ -239,12 +244,14 @@ def module_reachability(
     _close(reach, scans, config_seeds(project_root))  # strict: configuration files only widen it
     _discovered(reach, scans, discovering)
 
+    paths = {m: s.path for m, s in reach.modules.items()}
     uncovered = sorted(
         (
             (m, c)
             for m in reach.reached
             if reach.modules[m].owner not in COVERED_DYNAMIC_IMPORTS | {PROJECT}
             and not covered_module(m)
+            and not covered_given(m, paths, reach.reached)
             for c in _computed(scans[m])
         ),
         key=lambda mc: (mc[0], mc[1].line),

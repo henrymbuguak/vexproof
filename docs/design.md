@@ -592,6 +592,9 @@ changes, and choosing other projects does not change it.
   gunicorn (netbox); each checked by an import sweep
   - [x] django-compressor 2.4: 7 sites, all named by dotted strings; healthchecks gains 4
     clears, sound against its sweep (0 of 594 loaded modules missing, 0 of 4 contradicted)
+  - [x] babybuddy: plotly, Faker, boto3, defusedxml, django-import-export, DRF, easy-thumbnails,
+    tablib, whitenoise, and PyYAML on a condition (no unsafe loader reached); 0 -> 9 clears,
+    sound against its sweep (0 of 926 loaded modules missing, 0 of 9 contradicted)
 - [ ] Repeat the feasibility pass and set the false-clear target from the groups available
 
 Acceptance: every module loaded at run time on the observed projects is in the closure; no clear
