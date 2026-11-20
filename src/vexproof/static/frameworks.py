@@ -51,6 +51,28 @@ localized provider, `<provider>.<locale>`, a locale found by listing the provide
 rule reaches every Faker module, and every submodule of a reached package outside Faker whose
 `__init__.py` mentions Faker, since such a package may be a localized custom provider.
 
+Reviewed for babybuddy, module by module; each computed import loads a dotted string written in
+code or settings, which the string rule covers:
+- boto3 (1.17): `utils.lazy_call` with literal `boto3.s3.inject...` and `boto3.dynamodb...` names.
+- defusedxml (0.7): the literal standard-library module each defused module wraps (`__origin__`),
+  and `lxml.etree`.
+- django-import-export (2.5): `IMPORT_EXPORT_TMP_STORAGE_CLASS`, and tablib format modules named
+  as class attributes.
+- Django REST framework (3.12): API settings, `ROOT_URLCONF`, and the `generateschema` command's
+  `--generator_class`. That last one is typed by a person running a development command, which is
+  outside what a scan sees, like Django's own `--settings`: a stated limit, not covered by code.
+- easy-thumbnails (2.7): `THUMBNAIL_*` settings, whose defaults are dotted strings in its conf.
+- tablib (3.0): its literal registry of `tablib.formats._<name>.<Class>` paths.
+- whitenoise (5.2): `<app>.management.commands.runserver` for each installed app, which Django's
+  app rule already reaches.
+
+PyYAML (5.1 and later) is covered only on a condition: `constructor.find_python_module` and
+`find_python_name` import a name taken from the YAML document itself, but only for the unsafe
+loaders (`Loader`, `UnsafeLoader`, `unsafe_load` and their C forms). Its site counts as covered
+while no reached module that mentions YAML names one of them, and the installed PyYAML is 5.1 or
+later (before 5.1, `yaml.load` without a loader was unsafe). Otherwise data can name any module,
+and it blocks clears.
+
 `six` and its vendored copies (`urllib3.packages.six`, `stripe.six`, ...) import only names from
 their own table of moved standard-library modules. `requests.packages` imports a literal tuple
 of packages (`urllib3`, `idna`, `chardet`) that requests already imports directly.
@@ -60,6 +82,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import re
 import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -85,19 +108,74 @@ COVERED_DYNAMIC_MODULES = frozenset(
         "_plotly_utils.basevalidators",
         "_plotly_utils.importers",
         "_plotly_utils.optional_imports",
+        "boto3.utils",
         "debug_toolbar.apps",
         "debug_toolbar.middleware",
         "debug_toolbar.panels.signals",
         "debug_toolbar.toolbar",
         "debug_toolbar.utils",
+        "defusedxml.ElementTree",
+        "defusedxml.common",
+        "easy_thumbnails.utils",
         "faker.config",
         "faker.factory",
         "faker.utils.loading",
+        "import_export.admin",
+        "import_export.formats.base_formats",
         "plotly.io._sg_scraper",
         "plotly.validator_cache",
         "requests.packages",
+        "rest_framework.management.commands.generateschema",
+        "rest_framework.schemas.generators",
+        "rest_framework.settings",
+        "tablib.formats",
+        "whitenoise.runserver_nostatic.management.commands.runserver",
     }
 )
+
+
+# Names of PyYAML's unsafe loaders and constructors; `Loader=` as a keyword does not count.
+_YAML_UNSAFE = re.compile(
+    r"\b(?:C?UnsafeLoader|unsafe_load(?:_all)?|(?:Unsafe)?Constructor|C?Loader)\b(?!\s*=)"
+)
+_YAML_VERSION = re.compile(r"""__version__\s*=\s*['"](\d+)\.(\d+)""")
+_YAML_SAFE_SINCE = (5, 1)
+
+
+@functools.cache
+def _source(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _yaml_loads_safely(modules: Modules, reached: Reached) -> bool:
+    init = modules.get("yaml")
+    version = _YAML_VERSION.search(_source(init) or "") if init else None
+    if version is None or (int(version[1]), int(version[2])) < _YAML_SAFE_SINCE:
+        return False
+    for name in reached:
+        if name == "yaml" or name.startswith("yaml.") or name not in modules:
+            continue
+        text = _source(modules[name])
+        if text is None:
+            return False
+        if "yaml" in text.lower() and _YAML_UNSAFE.search(text):
+            return False
+    return True
+
+
+# Modules whose computed imports are covered only while a condition on the closure holds.
+_CONDITIONAL: dict[str, Callable[[Modules, Reached], bool]] = {
+    "yaml.constructor": _yaml_loads_safely,
+}
+
+
+def covered_given(module: str, modules: Modules, reached: Reached) -> bool:
+    """Covered by a conditional rule: the condition is checked against this closure."""
+    condition = _CONDITIONAL.get(module)
+    return condition is not None and condition(modules, reached)
 
 
 def covered_module(module: str) -> bool:
@@ -258,12 +336,9 @@ def plotly_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
                 yield RuleHit(name, "plotly imports it by name when installed")
 
 
-@functools.cache
 def _mentions_faker(path: Path) -> bool:
-    try:
-        return "faker" in path.read_text(encoding="utf-8", errors="replace").lower()
-    except OSError:
-        return True  # unreadable: assume it may be a provider
+    text = _source(path)
+    return text is None or "faker" in text.lower()  # unreadable: it may be a provider
 
 
 def faker_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:

@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tests.codebase import LIBRARY, PILLOW, PROJECT, build, write_project
 from tests.trees import make_tree
 from vexproof.domain import Package
-from vexproof.static.frameworks import django_rules, pillow_plugin_names, pillow_rules
-from vexproof.static.modules import module_reachability
+from vexproof.static.frameworks import (
+    covered_module,
+    django_rules,
+    pillow_plugin_names,
+    pillow_rules,
+)
+from vexproof.static.modules import ModuleReach, module_reachability
 
 
 def test_modules_the_project_can_load(tmp_path: Path) -> None:
@@ -292,3 +299,56 @@ def test_psycopg2s_compiled_code_reaches_the_modules_it_imports(tmp_path: Path) 
     assert reach.reached["psycopg2.errors"] == "psycopg2's compiled extension imports it on load"
     assert all(reach.is_reached(f"psycopg2.{n}") for n in ("extensions", "extras", "sql", "tz"))
     assert not reach.is_reached("psycopg2.pool")
+
+
+def _yaml_project(tmp_path: Path, version: str, loads: str) -> ModuleReach:
+    yaml = Package(name="pyyaml", version=version)
+    trees = {
+        PILLOW: make_tree(tmp_path / "sources", PILLOW, LIBRARY),
+        yaml: make_tree(
+            tmp_path / "sources",
+            yaml,
+            {
+                "yaml/__init__.py": f"__version__ = '{version}'\nfrom yaml.constructor import *\n",
+                "yaml/constructor.py": (
+                    "def find_python_module(name, unsafe=False):\n"
+                    "    if unsafe:\n        __import__(name)\n"
+                ),
+            },
+        ),
+    }
+    project = {**PROJECT, "shop/settings.py": f"import yaml\n\ndef read(s):\n    return {loads}\n"}
+    return module_reachability(write_project(tmp_path / "p", project), trees, {})
+
+
+@pytest.mark.parametrize(
+    ("version", "loads", "blocked"),
+    [
+        ("5.4.1", "yaml.safe_load(s)", False),
+        ("5.4.1", "yaml.load(s, Loader=yaml.SafeLoader)", False),
+        ("5.4.1", "yaml.load(s, Loader=yaml.Loader)", True),  # data can name any module
+        ("5.4.1", "yaml.unsafe_load(s)", True),
+        ("5.4.1", "yaml.load(s, Loader=yaml.CUnsafeLoader)", True),
+        ("3.13", "yaml.safe_load(s)", True),  # before 5.1, yaml.load was unsafe by default
+    ],
+)
+def test_pyyaml_is_covered_only_while_no_reached_code_uses_an_unsafe_loader(
+    tmp_path: Path, version: str, loads: str, blocked: bool
+) -> None:
+    reach = _yaml_project(tmp_path, version, loads)
+    assert bool(reach.blockers) is blocked
+    if blocked:
+        assert "yaml.constructor:3" in reach.blockers[0]
+
+
+def test_babybuddy_libraries_are_reviewed_module_by_module() -> None:
+    for module in (
+        "boto3.utils",
+        "defusedxml.common",
+        "rest_framework.settings",
+        "tablib.formats",
+        "whitenoise.runserver_nostatic.management.commands.runserver",
+    ):
+        assert covered_module(module)
+    assert not covered_module("rest_framework.views")
+    assert not covered_module("yaml.constructor")  # only on a condition
