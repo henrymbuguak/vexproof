@@ -38,6 +38,19 @@ project's `COMPRESS_*` settings, which the string rule covers. The `compress` co
 `loader.__module__`, a module already loaded. Its `os.walk` calls list template and static files,
 which it reads, never imports.
 
+plotly (4.14.3): `basevalidators` builds `"plotly.graph_objs" + ...`, `validator_cache`
+builds `"plotly.validators." + ...`, and `importers.relative_import` is called by 1,158
+generated modules, each passing its own `__name__` and literal lists: every one loads a plotly
+module, and the rule below reaches all of them. `optional_imports.get_module` is passed fixed
+names, many one word (`"numpy"`), which the string rule skips in library code, so the rule adds
+each one that is installed. `io._sg_scraper` globs image files and imports none.
+
+Faker (0.7 and 8.x): `config` imports the literal `'faker.providers'` and lists its subpackages;
+`factory` imports provider paths a caller passes as strings (the string rule) and, for a
+localized provider, `<provider>.<locale>`, a locale found by listing the provider's folder. The
+rule reaches every Faker module, and every submodule of a reached package outside Faker whose
+`__init__.py` mentions Faker, since such a package may be a localized custom provider.
+
 `six` and its vendored copies (`urllib3.packages.six`, `stripe.six`, ...) import only names from
 their own table of moved standard-library modules. `requests.packages` imports a literal tuple
 of packages (`urllib3`, `idna`, `chardet`) that requests already imports directly.
@@ -46,6 +59,7 @@ of packages (`urllib3`, `idna`, `chardet`) that requests already imports directl
 from __future__ import annotations
 
 import ast
+import functools
 import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -68,11 +82,19 @@ COVERED_DYNAMIC_MODULES = frozenset(
         "compressor.management.commands.mtime_cache",
         "compressor.parser",
         "compressor.utils",
+        "_plotly_utils.basevalidators",
+        "_plotly_utils.importers",
+        "_plotly_utils.optional_imports",
         "debug_toolbar.apps",
         "debug_toolbar.middleware",
         "debug_toolbar.panels.signals",
         "debug_toolbar.toolbar",
         "debug_toolbar.utils",
+        "faker.config",
+        "faker.factory",
+        "faker.utils.loading",
+        "plotly.io._sg_scraper",
+        "plotly.validator_cache",
         "requests.packages",
     }
 )
@@ -195,9 +217,74 @@ def psycopg2_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
             yield RuleHit(f"psycopg2.{name}", "psycopg2's compiled extension imports it on load")
 
 
+# Every name plotly 4.14.3 passes to `_plotly_utils.optional_imports.get_module`.
+PLOTLY_OPTIONAL_IMPORTS = (
+    "IPython",
+    "IPython.core.display",
+    "IPython.display",
+    "PIL.Image",
+    "_plotly_geo",
+    "chart_studio",
+    "geopandas",
+    "matplotlib",
+    "nbformat",
+    "numpy",
+    "pandas",
+    "plotly.matplotlylib",
+    "psutil",
+    "requests",
+    "sage.all",
+    "sage_salvus",
+    "scipy",
+    "scipy.cluster.hierarchy",
+    "scipy.interpolate",
+    "scipy.spatial",
+    "scipy.stats",
+    "shapefile",
+    "shapely",
+    "skimage",
+)
+
+
+def plotly_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
+    """plotly's computed imports load its own modules, or the optional ones listed above."""
+    if not any(m in reached for m in ("plotly", "_plotly_utils")):
+        return
+    for module in (*_submodules(modules, "plotly"), *_submodules(modules, "_plotly_utils")):
+        yield RuleHit(module, "plotly imports its own modules by computed name")
+    if "_plotly_utils.optional_imports" in reached:
+        for name in PLOTLY_OPTIONAL_IMPORTS:
+            if name in modules:
+                yield RuleHit(name, "plotly imports it by name when installed")
+
+
+@functools.cache
+def _mentions_faker(path: Path) -> bool:
+    try:
+        return "faker" in path.read_text(encoding="utf-8", errors="replace").lower()
+    except OSError:
+        return True  # unreadable: assume it may be a provider
+
+
+def faker_rules(modules: Modules, reached: Reached) -> Iterable[RuleHit]:
+    """Faker imports its own providers by listing them, and locales of custom providers."""
+    if "faker" not in reached:
+        return
+    for module in _submodules(modules, "faker"):
+        yield RuleHit(module, "Faker finds its own modules by listing them")
+    for name in sorted(reached):
+        if name == "faker" or name.startswith("faker.") or not _is_package(modules, name):
+            continue
+        if _mentions_faker(modules[name]):
+            for module in _submodules(modules, name):
+                yield RuleHit(module, f"Faker may load locales of {name}, a custom provider")
+
+
 RULES: tuple[Callable[[Modules, Reached], Iterable[RuleHit]], ...] = (
     django_rules,
     pillow_rules,
     allauth_rules,
     psycopg2_rules,
+    plotly_rules,
+    faker_rules,
 )
