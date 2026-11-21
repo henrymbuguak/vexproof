@@ -590,7 +590,7 @@ changes, and choosing other projects does not change it.
   packages; flasky, microblog and the FastAPI template have no requirements at their commits
 - [x] Prove the closure sound on run-time observations of several projects (the import sweep):
   shop, justdjango, babybuddy and healthchecks, after fixing what the babybuddy sweep found
-- [ ] Reviewed rules for the libraries that block the projects closest to clearing:
+- [x] Reviewed rules for the libraries that block the projects closest to clearing:
   django-compressor (healthchecks), plotly and Faker (babybuddy), django-extensions (djangogirls),
   gunicorn (netbox); each checked by an import sweep
   - [x] django-compressor 2.4: 7 sites, all named by dotted strings; healthchecks gains 4
@@ -598,7 +598,13 @@ changes, and choosing other projects does not change it.
   - [x] babybuddy: plotly, Faker, boto3, defusedxml, django-import-export, DRF, easy-thumbnails,
     tablib, whitenoise, and PyYAML on a condition (no unsafe loader reached); 0 -> 9 clears,
     sound against its sweep (0 of 926 loaded modules missing, 0 of 9 contradicted)
-- [ ] Repeat the feasibility pass and set the false-clear target from the groups available
+  - [x] ~~django-extensions, gunicorn~~: dropped after pass 2. Neither would unblock a project:
+    djangogirls and netbox stay blocked on principle, and djangopackages and ralph, the other
+    django-extensions users, are blocked by their own code
+- [x] Repeat the feasibility pass (`eval/results/phase1-feasibility-pass2.md`): 33 groups, from
+  25; the four projects the requirements reader recovered all have blockers, and ten of sixteen
+  candidates import by computed name in their own code
+- [ ] Set the false-clear target from the groups available (33 groups bound the rate below 8.7%)
 
 Acceptance: every module loaded at run time on the observed projects is in the closure; no clear
 is contradicted; the repeated pass reports the groups available.
