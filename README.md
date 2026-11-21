@@ -47,6 +47,34 @@ uv run vexproof serve      # open http://127.0.0.1:8000 and choose Demo result
 
 ---
 
+## Status on `develop` (21 November 2026)
+
+The upgrade follows [docs/design.md](docs/design.md) and ADRs 0013 to 0022. Muse Spark stays the
+default model until the benchmark compares it with Claude, and no clear ever depends on a model
+([ADR 0020](docs/adr/0020-model-may-block-never-enable-clear.md)).
+
+| Phase | Status |
+| --- | --- |
+| 0: Claude as a second model | **Released as [`v0.2.0`](CHANGELOG.md)** (19 November). Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5 matched every hand-checked pick (13 of 13 on the shop, 9 of 9 on justdjango for Haiku), and no clear was contradicted at run time |
+| 1a: Make clears scale, soundly | **Complete** (21 November). 44 clears on four Django projects, each checked against an import sweep of the running project; nested requirements files; the false-clear target set |
+| 1: Public benchmark | Starts 28 November |
+| 2: Agent loop with cached tool calls | Planned |
+| 3: MCP server and Claude Code integration | Planned |
+| 4: Prompt-injection test suite | Planned |
+| 5: Release | Planned |
+
+**What the false-clear figure means today.** Clears are not independent, so they are counted in
+groups that share a deciding module. With no clear contradicted, the 95% upper bound on the
+false-clear rate is 10.1% on the 28 groups from the four projects whose rules were written against
+their code, and 45.1% on the 5 groups from projects nobody tuned on. The benchmark's headline is
+the held-out figure, published unchanged; below 2% needs about 150 held-out groups. Details:
+[eval/results/phase1-feasibility-pass2.md](eval/results/phase1-feasibility-pass2.md) and the
+"False-clear target" section of the design.
+
+The results, walkthrough and video below describe the hackathon version, `v0.1.0`.
+
+---
+
 ## The problem
 
 Dependency scanners check **versions**, not **code**.
@@ -156,7 +184,7 @@ flowchart TB
 
 ## Results
 
-I checked vexproof against reality. I ran each test project under a scripted workload
+These are the `v0.1.0` results, with Muse Spark. I checked vexproof against reality. I ran each test project under a scripted workload
 (browsing, cart, checkout, admin login, and image uploads) and recorded every module that loaded
 and every function that ran. Then I compared the scan with that record.
 
@@ -470,6 +498,12 @@ function call. `vexproof eval` compares a scan with that record:
 To rebuild the observations from scratch, run `eval/dynamic/observe_shop.sh` and
 `eval/dynamic/observe_justdjango.sh`.
 
+On `develop`, an import sweep adds a second, workload-independent check
+(`eval/dynamic/sweep_in_docker.sh`): it installs a project's exact pins in a container, then,
+with the network off, imports every production module and records what loaded. A module that
+loads there but is missing from the scan's closure fails the evaluation. Every framework rule
+added in Phase 1a was checked this way on the shop, justdjango, healthchecks and babybuddy.
+
 The hand-checked answers live in [eval/gold/symbols.yaml](eval/gold/symbols.yaml): 22 cases,
 each with the reason for its answer. The set is small, so read 22 of 22 as "small,
 hand-checked and reproducible", not as a general accuracy rate.
@@ -506,16 +540,22 @@ distribution name, and vexproof now refuses to clear in that case.
 - **Bugs in native code stay open.** When a fix changes only C code or bundled libraries,
   vexproof has no Python function to trace and marks the alert for review.
 - **vexproof knows frameworks through hand-written rules.** Rules exist for Django, Pillow,
-  django-allauth and the Django debug toolbar. When vexproof meets code loaded by a name it
-  cannot see, it leaves the alert open rather than clearing it, so other frameworks mean more
-  open alerts. I have evaluated two Django projects against the running code; other frameworks
-  have no such check yet.
+  django-allauth and the Django debug toolbar, and on `develop` also for django-compressor,
+  plotly, Faker, boto3, Django REST framework, django-import-export, easy-thumbnails, tablib,
+  whitenoise, defusedxml and PyYAML (only while no unsafe loader is reached). When vexproof meets
+  code loaded by a name it cannot see, it leaves the alert open rather than clearing it, so other
+  frameworks mean more open alerts. Four Django projects are checked against their running code;
+  Flask and FastAPI projects have no such check yet.
+- **Most real projects clear little today.** On twenty candidate projects, ten import modules by
+  a computed name in their own code (plugin loaders, settings, migrations), and that blocks every
+  module-level clear in the project. Library rules cannot lift it.
 - **Some leads remain.** Across both projects, 9 open alerts had a picked function that ran
   under the workload: paths the search has not found yet. Four reachable paths were not
   exercised by the workloads, so the evaluation could not confirm them.
 - **Paths that start in `manage.py`** are reachable only by an operator, and vexproof does not
   label them that way yet.
-- **The hosted Meta Model API is untested.** All results use Muse Spark Open through Ollama.
+- **The hosted Meta Model API is untested.** The `v0.1.0` results use Muse Spark Open through
+  Ollama; the Claude results on `develop` use the Anthropic API.
 
 ## Project layout
 
@@ -524,13 +564,13 @@ distribution name, and vexproof now refuses to clear in that case.
 | `src/vexproof/ingest/`, `sources/` | SBOMs, repositories at a commit, package files |
 | `src/vexproof/intel/` | OSV, CISA KEV and EPSS clients |
 | `src/vexproof/static/` | Which modules your code can load, the code index, framework rules |
-| `src/vexproof/symbols/`, `llm/`, `prompts/` | Function picks with Muse Spark, the verifier, recorded model answers, versioned prompts |
+| `src/vexproof/symbols/`, `llm/`, `prompts/` | Function picks with Muse Spark or Claude, the verifier, recorded model answers, versioned prompts |
 | `src/vexproof/evidence/` | Clears and call-path search, review and verification |
 | `src/vexproof/report/` | Priority, upgrade plan, OpenVEX and HTML |
 | `src/vexproof/web/` | The web app |
 | `src/vexproof/evaluate/`, `eval/` | The evaluation: workloads, observations, gold answers, results |
-| `docs/adr/` | Twelve architecture decision records |
-| `tests/` | 355 offline tests on synthetic fixtures |
+| `docs/adr/`, `docs/design.md` | 22 architecture decision records; the upgrade design and plan |
+| `tests/` | 457 offline tests on synthetic fixtures |
 
 ## Development
 
