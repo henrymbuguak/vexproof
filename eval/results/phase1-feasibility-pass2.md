@@ -105,3 +105,9 @@ With no false clears observed, the per-group 95% upper bound is `1 - 0.05^(1/n)`
 The design's success line, a per-group bound below 2%, needs about 150 groups. This set gives
 33, and its remaining blockers are mostly in project code, where library rules cannot reach.
 Choosing the target is a decision the plan leaves open; it is not set here.
+
+**Added 21 November, when the target was set:** 28 of the 33 groups come from the shop,
+justdjango, healthchecks and babybuddy, whose rules were written against their code and import
+sweeps, so they are tuning groups under ADR 0019 (10.1%). Only 5, from djangogirls and
+fastapi-realworld, come from projects nobody tuned on (45.1%). The 8.7% above covers every
+project and is not a held-out figure. The target is in `docs/design.md`, Phase 1a.
