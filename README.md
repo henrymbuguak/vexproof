@@ -3,6 +3,8 @@
 **Find out which dependency vulnerabilities your Python code can actually reach, and get the proof.**
 *The AI proposes. The verifier proves.*
 
+[![Tested on Muse Spark Open](https://img.shields.io/badge/tested%20on-Muse%20Spark%20Open-0467DF)](#results)
+[![Tested on Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5](https://img.shields.io/badge/tested%20on-Claude%20Opus%205.5%20%C2%B7%20Sonnet%205.5%20%C2%B7%20Haiku%205.5-D97757)](eval/results/claude-tiers-shop-1aa90f6.md)
 [![ci](https://github.com/henrymbuguak/vexproof/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/henrymbuguak/vexproof/actions/workflows/ci.yml?query=branch%3Adevelop)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
