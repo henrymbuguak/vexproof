@@ -220,3 +220,18 @@ def test_listing_packages_directories_or_entry_points_is_discovery(call: str) ->
 def test_other_calls_named_walk_are_not_discovery() -> None:
     assert not scan_source("ast.walk(tree)\n", "lib.x").discovers
     assert not scan_source("import_module(name)\n", "lib.x").discovers
+
+
+def test_project_scan_skips_links_out_of_the_repository_or_to_nothing(tmp_path: Path) -> None:
+    # a cloned repository is data: a link may point at an uncloned submodule, or at the
+    # machine's own files
+    (tmp_path / "outside.py").write_text("import secret_module\n")
+    repo = tmp_path / "repo"
+    (repo / "shop").mkdir(parents=True)
+    (repo / "shop/views.py").write_text("import requests\n")
+    (repo / "shop/linked.py").symlink_to(repo / "shop/views.py")
+    (repo / "shop/away.py").symlink_to(tmp_path / "outside.py")
+    (repo / "shop/broken.py").symlink_to(repo / "common/missing.py")
+    scan = scan_project(repo)
+    assert scan.files == 2  # views.py and the link that stays inside
+    assert "secret_module" not in scan.production.imports
