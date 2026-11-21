@@ -13,7 +13,7 @@ from vexproof.static.frameworks import (
     pillow_plugin_names,
     pillow_rules,
 )
-from vexproof.static.modules import ModuleReach, module_reachability
+from vexproof.static.modules import ModuleReach, config_files, module_reachability
 
 
 def test_modules_the_project_can_load(tmp_path: Path) -> None:
@@ -167,6 +167,19 @@ def test_configuration_files_name_modules_to_load(tmp_path: Path) -> None:
     in_tests = {**PROJECT, "tests/fixtures.yaml": "backend: PIL.ImageMath\n"}
     reach, _, _ = build(tmp_path / "b", project=in_tests)
     assert not reach.is_reached("PIL.ImageMath")
+
+
+def test_configuration_links_out_of_the_repository_or_to_nothing_are_skipped(
+    tmp_path: Path,
+) -> None:
+    # readthedocs: `.isort.cfg -> common/isort.cfg`, where common/ is an uncloned submodule
+    (tmp_path / "home.yaml").write_text("backend: PIL.ImageMath\n")
+    root = write_project(tmp_path / "p", PROJECT)
+    (root / ".isort.cfg").symlink_to(root / "common/isort.cfg")
+    (root / "app.yaml").symlink_to(tmp_path / "home.yaml")
+    (root / "real.yaml").write_text("backend: PIL.ImageMath\n")
+    (root / "same.yaml").symlink_to(root / "real.yaml")
+    assert [str(p) for p in config_files(root)] == ["real.yaml", "same.yaml"]
 
 
 def test_a_library_that_discovers_modules_has_all_of_them_reached(tmp_path: Path) -> None:

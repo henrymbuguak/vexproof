@@ -40,6 +40,19 @@ class ProjectScan:
     computed_dynamic_imports: list[str] = field(default_factory=list)  # "path:line"
 
 
+def inside_file(path: Path, root: Path) -> bool:
+    """A regular file whose real location is inside the repository.
+
+    A cloned repository is data: a symlink may point at nothing (an uncloned submodule) or out of
+    the repository, at the machine's own files. Either is skipped; a link inside it is followed.
+    """
+    try:
+        real = path.resolve(strict=True)
+    except OSError:
+        return False
+    return real.is_file() and real.is_relative_to(root.resolve())
+
+
 def python_files(root: Path) -> list[PurePosixPath]:
     found: list[PurePosixPath] = []
     for current, dirs, files in os.walk(root):
@@ -63,7 +76,7 @@ def scan_project(root: Path) -> ProjectScan:
     scan = ProjectScan()
     for rel in python_files(root):
         path = root.joinpath(*rel.parts)
-        if path.stat().st_size > MAX_FILE_BYTES:
+        if not inside_file(path, root) or path.stat().st_size > MAX_FILE_BYTES:
             continue
         import_rel = import_path(rel)
         module = module_name(str(import_rel))

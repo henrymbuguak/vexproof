@@ -44,6 +44,7 @@ from vexproof.static.project import (
     MAX_FILE_BYTES,
     SKIP_DIRS,
     import_path,
+    inside_file,
     is_test_path,
     python_files,
 )
@@ -325,7 +326,9 @@ def config_files(root: Path) -> list[PurePosixPath]:
                 continue
             rel = PurePosixPath(Path(current, name).relative_to(root).as_posix())
             path = root.joinpath(*rel.parts)
-            if is_test_path(rel) or path.stat().st_size > MAX_FILE_BYTES:
+            if is_test_path(rel) or not inside_file(path, root):
+                continue
+            if path.stat().st_size > MAX_FILE_BYTES:
                 continue
             found.append(rel)
     return found
