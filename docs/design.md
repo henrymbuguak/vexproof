@@ -41,7 +41,7 @@ For each alert, one of three answers, each with its proof: reachable, with a cal
 
 **How we will know it worked**
 
-The share of alerts decided with evidence rises on the held-out projects, the per-group upper bound on the false-clear rate falls below 2%, and someone outside the project reproduces the benchmark from the published instructions.
+The share of alerts decided with evidence rises on the held-out projects, the held-out per-group upper bound on the false-clear rate is published unchanged, with a path to below 2% stated, and someone outside the project reproduces the benchmark from the published instructions.
 
 ## Summary
 
@@ -67,7 +67,7 @@ vexproof moves to Claude and gains an agent that investigates the alerts it curr
 | Metric | Today | Target |
 | --- | --- | --- |
 | Open-alert rate | 74% | Under 60% overall; picked-but-no-path group halved |
-| False-clear rate, upper 95% bound | About 12.5% under today's rule (0 contradicted, 30 clears in 24 module groups), or about 15% (20 groups) under the pick-independent rule that ships in v0.2.0; provisional until vexproof eval computes it | 3 divided by the number of independent groups; under 2% needs about 150 groups, confirmed or revised after the Phase 1 feasibility check |
+| False-clear rate, upper 95% bound | 8.7% from 33 groups on the feasibility projects (0 contradicted, pass 2), but 28 of those groups come from projects the rules were tuned on; 45% from the 5 that were not | Held-out per-group bound published unchanged as the headline, tuning-set bound beside it and labelled as such; below 2% (about 150 held-out groups) stays the long-run goal (Phase 1a, "False-clear target") |
 | Vulnerable-function pick accuracy | 22 of 22 on 14 labels | Reported on 100+ labels with interval |
 | Injection attacks causing a wrong clear | Not tested | 0 across the attack suite |
 | Cost per alert | $0.95 and $3.61 per scan, untiered | Reported per tier, with caching on and off |
@@ -90,7 +90,7 @@ vexproof already has the right trust model; what it lacks is reach, evidence and
 | --- | --- | --- |
 | Most alerts stay open | 172 of 231 open | Agent loop |
 | Accuracy rests on a tiny sample | 14 hand labels, two Django projects | Evaluation plan |
-| The false-clear claim is weak | 0 of 30 clears in 24 module groups bounds the rate only below about 12.5% under today's rule, or about 15% (20 groups) under the pick-independent rule | Evaluation plan |
+| The false-clear claim is weak | 33 groups bound the rate below 8.7%, but only 5 come from projects the rules were not tuned on, a held-out bound near 45% | Evaluation plan |
 | A wrong pick with a real quote can pass | The verifier checks grounding, not meaning | Agent loop, verifier contract |
 | No tool use, no MCP, no Claude | The model only picks among candidates | Provider layer, MCP server |
 | Untrusted text reaches the model untested | Advisories and commits are attacker-writable | Security and threat model |
@@ -499,9 +499,9 @@ The benchmark is a deliverable in its own right: a public, versioned dataset and
 
 With zero misses in n independent trials, the 95% upper bound on the false-clear rate is about 3 divided by n. Clears are not independent trials. The unit is the module, because a closure error happens per module, as a missing rule for how one module loads, and every clear that rests on that module fails with it. So a group joins clears that share a deciding module within the same package version.
 
-The grouping rule moves the result a long way. An independent recount on both scans gives 24 groups today (about 12.5%) and 20 under the pick-independent rule (about 15%); grouping by package version alone would give 5 groups and about 60%. An earlier hand count in this doc (14 and 12 groups, about 21%) grouped across package versions, used incomplete module lists, and could not be reproduced. The grouping now goes into `vexproof eval` as code, and this doc quotes its output once that exists; until then the figures above are provisional.
+The grouping rule moves the result a long way. An independent recount on both scans gave 24 groups on 18 November (about 12.5%) and 20 under the pick-independent rule (about 15%); grouping by package version alone would give 5 groups and about 60%. An earlier hand count in this doc (14 and 12 groups, about 21%) grouped across package versions, used incomplete module lists, and could not be reproduced. The grouping now goes into `vexproof eval` as code, and this doc quotes its output once that exists; until then the figures above are provisional.
 
-So every result reports two bounds: per clear, and per independent group, where a group joins clears that share a deciding module within the same package version. The per-group bound is the headline. Reaching under 2% needs about 150 groups, which in practice means more projects and more distinct package versions, not more alerts from the same ones.
+So every result reports two bounds: per clear, and per independent group, where a group joins clears that share a deciding module within the same package version. The per-group bound is the headline. Reaching under 2% needs about 150 groups, which in practice means more projects and more distinct package versions, not more alerts from the same ones. Only groups from projects the rules were not tuned on count toward the headline: a framework rule written while reading a project's code or its import sweep is tuning on that whole project, whatever the advisory split (ADR 0019).
 
 **Limits of the oracle**
 
@@ -604,14 +604,35 @@ changes, and choosing other projects does not change it.
 - [x] Repeat the feasibility pass (`eval/results/phase1-feasibility-pass2.md`): 33 groups, from
   25; the four projects the requirements reader recovered all have blockers, and ten of sixteen
   candidates import by computed name in their own code
-- [ ] Set the false-clear target from the groups available (33 groups bound the rate below 8.7%)
+- [x] Set the false-clear target from the groups available (see "False-clear target" below)
+
+#### False-clear target (set 21 November, after pass 2)
+
+Bounds are exact, `1 - 0.05^(1/n)` for n groups and no contradicted clear; `3/n` overstates them
+when n is small.
+
+| Groups | Where they come from | 95% upper bound |
+| --- | --- | --- |
+| 33 | All feasibility projects | 8.7% |
+| 28 | Tuning: shop, justdjango, healthchecks, babybuddy, whose rules were written against their code and sweeps | 10.1% |
+| 5 | Not tuned on: djangogirls (2) and fastapi-realworld (3), all package-level clears | 45.1% |
+
+- **Headline:** the held-out per-group bound, run once per release and published unchanged
+  (ADR 0019). With today's projects it is about 45%, and it is stated as that before the
+  benchmark is built.
+- **Beside it:** the tuning-set bound, about 10%, always labelled as tuning and never quoted
+  alone.
+- **Long-run goal:** below 2%, about 150 held-out groups. Pass 2 shows what limits them: ten of
+  sixteen candidates import by computed name in their own code, so held-out groups grow through
+  reviewed rules for project code and new projects, not through more library rules.
+- Projects whose rules are tuned from now on move to the tuning side, with their groups.
 
 Acceptance: every module loaded at run time on the observed projects is in the closure; no clear
 is contradicted; the repeated pass reports the groups available.
 
 ### Phase 1: Benchmark (weeks 1 to 3, from 28 Nov)
 
-Begin with a two-day feasibility check before any labelling: confirm each candidate project installs and runs its tests from a lockfile or container, then run the current pipeline and count deterministic clears. If ten projects will not install, go ahead with six. Count independent groups, not clears. If they yield fewer than 150 groups, restate the false-clear target for the number available (60 groups gives a 5% bound) before the benchmark is built, not after, and prefer adding projects with different package versions over adding alerts.
+Begin with a two-day feasibility check before any labelling: confirm each candidate project installs and runs its tests from a lockfile or container, then run the current pipeline and count deterministic clears. If ten projects will not install, go ahead with six. Count independent groups, not clears. If they yield fewer than 150 groups, restate the false-clear target for the number available (60 groups gives a 5% bound) before the benchmark is built, not after (restated on 21 November: Phase 1a, "False-clear target"), and prefer adding projects with different package versions over adding alerts.
 
 - [ ] Choose and pin 10 or more third-party projects
 - [ ] Build the tracing harness and workload scripts per project
